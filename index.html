@@ -116,7 +116,7 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setClearColor(0x000000, 1);
 renderer.toneMapping = THREE.LinearToneMapping;
-renderer.toneMappingExposure = 1.5;
+renderer.toneMappingExposure = 2.1;
 console.log('WebGL ready');
 
 const scene = new THREE.Scene();
@@ -127,17 +127,17 @@ const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSpeed = 0.8;
 controls.maxDistance = 120; controls.minDistance = 3;
 
-scene.add(new THREE.AmbientLight(0x555566, 0.9));
-const key = new THREE.PointLight(0xffaa00, 45, 60); key.position.set(10, 15, 20); scene.add(key);
-const fill = new THREE.PointLight(0x334488, 15, 60); fill.position.set(-15, -5, 15); scene.add(fill);
-const rim = new THREE.PointLight(0xff5500, 30, 45); rim.position.set(-20, 10, -10); scene.add(rim);
+scene.add(new THREE.AmbientLight(0x666677, 1.3));
+const key = new THREE.PointLight(0xffaa00, 60, 80); key.position.set(10, 15, 20); scene.add(key);
+const fill = new THREE.PointLight(0x334488, 20, 80); fill.position.set(-15, -5, 15); scene.add(fill);
+const rim = new THREE.PointLight(0xff5500, 40, 60); rim.position.set(-20, 10, -10); scene.add(rim);
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.75, 0.4, 0.95);
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 1.0, 0.4, 0.95);
 
 // Hand lamp - PointLight that follows hand
-const handLamp = new THREE.PointLight(0xffaa55, 0, 25);
+const handLamp = new THREE.PointLight(0xffaa55, 0, 35);
 handLamp.visible = false; pivotGroup.add(handLamp);
 composer.addPass(bloom);
 
@@ -177,7 +177,7 @@ for (let i = 0; i < PARTICLE_COUNT; i++) {
 }
 
 const shaderMat = new THREE.ShaderMaterial({
-  uniforms: { uTime: { value: 0 }, uPixelRatio: { value: renderer.getPixelRatio() }, uCloudAmount: { value: 1.0 }, uAlphaScale: { value: 0.85 }, uBrightness: { value: 4.5 }, uSprite: { value: spriteTex }, uHandWorldPos: { value: new THREE.Vector3(0, 0, 100) }, uHandActive: { value: 0 } },
+  uniforms: { uTime: { value: 0 }, uPixelRatio: { value: renderer.getPixelRatio() }, uCloudAmount: { value: 1.0 }, uAlphaScale: { value: 0.85 }, uBrightness: { value: 6.0 }, uSprite: { value: spriteTex }, uHandWorldPos: { value: new THREE.Vector3(0, 0, 100) }, uHandActive: { value: 0 } },
   vertexShader: `uniform float uTime,uPixelRatio,uCloudAmount;attribute vec3 aBasePos,aBaseColor,aCloudOffset;attribute float aSize;varying vec3 vColor;varying vec3 vWorldPos;vec3 m289(vec3 x){return x-floor(x/289.)*289.;}vec4 pte(vec4 x){return m289(((x*34.)+1.)*x);}float sn(vec3 v){vec3 i=floor(v+dot(v,vec3(.33333))),x0=v-i+dot(i,vec3(.16667)),g=step(x0.yzx,x0.xyz),l=1.-g,i1=min(g,l.zxy),i2=max(g,l.zxy),x1=x0-i1+.16667,x2=x0-i2+.33333,x3=x0-.5;i=m289(i);vec4 p=pte(pte(pte(i.z+vec4(0,i1.z,i2.z,1.))+i.y+vec4(0,i1.y,i2.y,1.))+i.x+vec4(0,i1.x,i2.x,1.)),j=p-49.*floor(p*.0714286),x_=floor(j*.0714286),y_=floor(j-7.*x_),x=x_*.142857+.5,y=y_*.142857+.5;vec4 h=1.-abs(x)-abs(y),b0=vec4(x.xy,y.xy),b1=vec4(x.zw,y.zw),s0=floor(b0)*2.+1.,s1=floor(b1)*2.+1.,sh=-step(h,vec4(0)),a0=b0.xzyw+s0.xzyw*sh.xxyy,a1=b1.xzyw+s1.xzyw*sh.zzww;vec3 p0=vec3(a0.xy,h.x),p1=vec3(a0.zw,h.y),p2=vec3(a1.xy,h.z),p3=vec3(a1.zw,h.w);vec4 n=1.79284291400159-.85373472095314*vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3));p0*=n.x;p1*=n.y;p2*=n.z;p3*=n.w;vec4 m=max(.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.);m=m*m;return 42.*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));}void main(){vColor=aBaseColor;vWorldPos=aBasePos;vec3 p=aBasePos+aCloudOffset*uCloudAmount;if(uCloudAmount>.01){float d=sn(vec3(aBasePos*.05+uTime*.3))*uCloudAmount;p+=normalize(aCloudOffset+.001)*d*2.5;float s=sin(uTime*.6+length(aBasePos)*.2)*.3*uCloudAmount;p+=cross(vec3(0,1,0),normalize(p+.001))*s;}vec4 mv=modelViewMatrix*vec4(p,1.);gl_PointSize=aSize*uPixelRatio*(400./-mv.z);gl_Position=projectionMatrix*mv;}`,
   fragmentShader: `uniform sampler2D uSprite;uniform float uAlphaScale,uBrightness,uTime;uniform vec3 uHandWorldPos;uniform float uHandActive;varying vec3 vColor;varying vec3 vWorldPos;float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}void main(){float d=length(gl_PointCoord-vec2(.5));if(d>.5)discard;float a=pow(1.-smoothstep(0.,.5,d),.85);vec4 t=texture2D(uSprite,gl_PointCoord);float sp=hash(gl_FragCoord.xy+uTime*10.);sp=smoothstep(.92,1.,sp);float tw=.5+.5*sin(gl_FragCoord.x*.3+uTime*5.)*sin(gl_FragCoord.y*.3+uTime*4.);float b=1.+sp*3.+tw*.3;gl_FragColor=vec4(vColor*uBrightness*t.rgb*b,t.a*a*uAlphaScale);if(uHandActive>.5){float td=length(vWorldPos-uHandWorldPos);float tg=exp(-td*.5)*1.5;gl_FragColor.rgb+=vColor*tg*2.0;}}`,
   transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
@@ -406,7 +406,7 @@ function animate() {
     handLamp.visible = true;
     const lampPos = pivotGroup.worldToLocal(hp.clone());
     handLamp.position.copy(lampPos);
-    handLamp.intensity += (8 - handLamp.intensity) * 0.1;
+    handLamp.intensity += (12 - handLamp.intensity) * 0.1;
     // Touch glow + sparkles
     if (window._modelMeshes) {
       const hLocal = pivotGroup.worldToLocal(hp.clone());
