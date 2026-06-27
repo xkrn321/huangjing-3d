@@ -208,7 +208,7 @@ sparkles.visible = false; scene.add(sparkles);
 
 // Load GLB
 console.log('Loading GLB...');
-new GLTFLoader().load('https://cdn.jsdelivr.net/gh/xkrn321/huangjing-3d@main/models/huangjing.glb', gltf => {
+new GLTFLoader().load('https://jsd.onmicrosoft.cn/gh/xkrn321/huangjing-3d@main/models/huangjing.glb', gltf => {
   try {
     console.log('GLB loaded');
     const m = gltf.scene; m.scale.set(24, 24, 24); pivotGroup.add(m);
@@ -281,8 +281,6 @@ new GLTFLoader().load('https://cdn.jsdelivr.net/gh/xkrn321/huangjing-3d@main/mod
       }
       const geo2 = makeGeo(np, nbp, nc, nbc, ncl, ns);
       particles.geometry.dispose(); particles.geometry = geo2; particles.visible = true;
-    }
-    
     }
     console.log('Model ready');
   } catch (e) { console.error('GLB error:', e); }
