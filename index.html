@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>黄精 · 3D粒子</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: -apple-system,'STSong','Songti SC','PingFang SC','Microsoft YaHei',serif; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    #three-canvas { display: block; width: 100vw; height: 100vh; }
+    #loading-overlay { position: fixed; inset: 0; background: #000; z-index: 999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; transition: opacity 0.8s ease; }
+    #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+    .loader { width: 50px; height: 50px; border-radius: 50%; border: 2px solid rgba(255,170,0,0.2); border-top-color: #ffaa00; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { color: #ffaa00; font-size: clamp(16px,4vw,20px); letter-spacing: 8px; font-weight: bold; }
+
+    /* Museum header */
+    .museum-header{position:fixed;top:0;left:0;right:0;z-index:15;pointer-events:none;padding:14px 20px 10px;background:linear-gradient(180deg,rgba(0,0,0,.85) 0%,rgba(0,0,0,.3) 70%,transparent 100%);text-align:center}
+    .museum-title{font-size:clamp(14px,2.5vw,22px);font-weight:bold;letter-spacing:4px;background:linear-gradient(180deg,#f2c860 0%,#c48828 40%,#8a5810 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;text-fill-color:transparent;filter:drop-shadow(0 0 10px rgba(255,170,0,.35))}
+    .museum-line{width:50px;height:1px;margin:5px auto;background:linear-gradient(90deg,transparent,rgba(255,170,0,.4),transparent)}
+    .museum-subtitle{font-size:clamp(9px,1.2vw,12px);letter-spacing:2px;color:rgba(190,160,120,.55);font-style:italic}
+    #webcam { position: fixed; top: 12px; left: 12px; width: 100px; height: 75px; border-radius: 10px; border: 1px solid rgba(255,170,0,0.25); background: rgba(0,0,0,0.6); object-fit: cover; transform: scaleX(-1); z-index: 10; opacity: 0; transition: opacity 0.3s; }
+    #webcam.show { opacity: 1; }
+    #hand-canvas { position: fixed; top: 12px; left: 12px; width: 100px; height: 75px; border-radius: 10px; pointer-events: none; transform: scaleX(-1); z-index: 11; }
+    .gesture-hint { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); color: rgba(255,170,0,0.7); font-size: 13px; letter-spacing: 2px; pointer-events: none; z-index: 5; transition: opacity 1.5s; text-align: center; line-height: 1.8; }
+    .gesture-hint.fade { opacity: 0; }
+    .cards-wrap { position: fixed; right: 16px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 12px; z-index: 20; pointer-events: auto; transition: all 0.4s ease; }
+    .herb-card { background: linear-gradient(135deg, rgba(20,12,4,0.85) 0%, rgba(5,3,1,0.8) 100%); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255,170,0,0.25); border-radius: 14px; padding: 12px 16px; width: 180px; cursor: default; color: #f0dcc0; transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1.2); box-shadow: 0 4px 24px rgba(0,0,0,0.5); animation: cardFloat 4s ease-in-out infinite; position: relative; overflow: hidden; }
+    .herb-card:nth-child(1) { animation-delay: 0s; } .herb-card:nth-child(2) { animation-delay: 0.5s; }
+    .herb-card:nth-child(3) { animation-delay: 1s; } .herb-card:nth-child(4) { animation-delay: 1.5s; }
+    @keyframes cardFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+    .herb-card .card-icon { font-size: 22px; margin-bottom: 4px; }
+    .herb-card .card-title { font-size: 14px; font-weight: bold; color: #ffaa00; margin-bottom: 3px; }
+    .herb-card .card-desc { font-size: 10px; color: #c0a070; line-height: 1.5; }
+    .herb-card .card-divider { width: 20px; height: 1px; background: linear-gradient(90deg, rgba(255,170,0,0.5), transparent); margin: 5px 0; }
+    #card-toggle { display: none; position: fixed; bottom: 20px; right: 16px; z-index: 25; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,170,0,0.35); background: rgba(10,5,2,0.8); backdrop-filter: blur(8px); color: #ffaa00; font-size: 20px; cursor: pointer; align-items: center; justify-content: center; }
+    /* Camera start button */
+    #cam-btn {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); z-index: 30;
+      padding: 14px 32px; border-radius: 30px; border: 1px solid rgba(255,170,0,0.5);
+      background: linear-gradient(135deg, rgba(255,140,0,0.25), rgba(255,100,0,0.15));
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      color: #ffaa00; font-size: 15px; font-weight: bold; letter-spacing: 2px;
+      cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 24px rgba(255,140,0,0.2);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    #cam-btn:hover { background: rgba(255,140,0,0.35); box-shadow: 0 4px 32px rgba(255,140,0,0.35); }
+    #cam-btn.hidden { display: none; }
+    @keyframes pulse { 0%,100% { box-shadow: 0 4px 24px rgba(255,140,0,0.2); } 50% { box-shadow: 0 4px 36px rgba(255,140,0,0.4); } }
+    @media (max-width: 768px) {
+      #webcam { width: 72px; height: 54px; top: 8px; left: 8px; }
+      #hand-canvas { width: 72px; height: 54px; top: 8px; left: 8px; }
+      #card-toggle { display: flex; }
+      .cards-wrap { right: 8px; top: auto; bottom: 80px; transform: none; gap: 6px; opacity: 0; pointer-events: none; }
+      .cards-wrap.show { opacity: 1; pointer-events: auto; }
+      .herb-card { width: 155px; padding: 10px 12px; animation: none; background: rgba(10,5,2,0.9); }
+      .herb-card .card-icon { font-size: 18px; }
+      .herb-card .card-title { font-size: 12px; }
+      .herb-card .card-desc { font-size: 9px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="loading-overlay"><div class="loader"></div><div class="loading-text">黄 精</div></div>
+  <canvas id="three-canvas"></canvas>
+  <!-- Museum header -->
+  <div class="museum-header">
+    <div class="museum-title">博物馆典藏 — 黄精 3D 模型</div>
+    <div class="museum-line"></div>
+    <div class="museum-subtitle">Polygonatum sibiricum · Museum Collection</div>
+  </div>
+  <video id="webcam" autoplay playsinline muted></video>
+  <canvas id="hand-canvas"></canvas>
+  <div class="gesture-hint" id="gesture-hint">🖐️ 挥挥手<br>控制模型</div>
+  <button id="card-toggle" onclick="document.querySelector('.cards-wrap').classList.toggle('show')">📋</button>
+  <button id="cam-btn" onclick="startCamera()">📷 开启手势控制</button>
+
+  <!-- Floating bg particles -->
+  <div class="bg-particles" id="bg-particles"></div>
+  <div class="cards-wrap">
+    <div class="herb-card"><div class="card-icon">🌿</div><div class="card-title">仙人余粮</div><div class="card-divider"></div><div class="card-desc">百合科黄精属多年生草本。根茎入药，自古誉为"仙人余粮"。</div></div>
+    <div class="herb-card"><div class="card-icon">💊</div><div class="card-title">补气养阴</div><div class="card-divider"></div><div class="card-desc">滋补脾肺肾三脏，改善体虚乏力、口干舌燥。</div></div>
+    <div class="herb-card"><div class="card-icon">⛰️</div><div class="card-title">云贵产地</div><div class="card-divider"></div><div class="card-desc">主产云南四川贵州高海拔山区，喜阴湿环境。</div></div>
+    <div class="herb-card"><div class="card-icon">🍲</div><div class="card-title">食养妙用</div><div class="card-divider"></div><div class="card-desc">黄精炖鸡、黄精枸杞茶，甘甜滋润日常食养。</div></div>
+  </div>
+
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+  </script>
+  <script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+console.log('Three.js loaded, version:', THREE.REVISION);
+
+const PARTICLE_COUNT = 12000;
+let handData = null, handDetected = false;
+const randoms = new Float32Array(PARTICLE_COUNT);
+for (let i = 0; i < PARTICLE_COUNT; i++) randoms[i] = Math.random();
+
+// Scene
+const canvas = document.getElementById('three-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 1);
+renderer.toneMapping = THREE.LinearToneMapping;
+renderer.toneMappingExposure = 1.5;
+console.log('WebGL ready');
+
+const scene = new THREE.Scene();
+const pivotGroup = new THREE.Group(); scene.add(pivotGroup);
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 2000);
+camera.position.set(0, 0, 35);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.autoRotate = true; controls.autoRotateSpeed = 0.8;
+controls.maxDistance = 120; controls.minDistance = 3;
+
+scene.add(new THREE.AmbientLight(0x555566, 0.9));
+const key = new THREE.PointLight(0xffaa00, 45, 60); key.position.set(10, 15, 20); scene.add(key);
+const fill = new THREE.PointLight(0x334488, 15, 60); fill.position.set(-15, -5, 15); scene.add(fill);
+const rim = new THREE.PointLight(0xff5500, 30, 45); rim.position.set(-20, 10, -10); scene.add(rim);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.75, 0.4, 0.95);
+
+// Hand lamp - PointLight that follows hand
+const handLamp = new THREE.PointLight(0xffaa55, 0, 25);
+handLamp.visible = false; pivotGroup.add(handLamp);
+composer.addPass(bloom);
+
+// Sprite
+const sc = document.createElement('canvas'); sc.width = 128; sc.height = 128;
+const stx = sc.getContext('2d');
+const g = stx.createRadialGradient(64, 64, 0, 64, 64, 64);
+g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.15, 'rgba(255,255,255,0.85)');
+g.addColorStop(0.35, 'rgba(255,255,255,0.35)'); g.addColorStop(0.7, 'rgba(255,255,255,0.05)');
+g.addColorStop(1, 'rgba(0,0,0,0)'); stx.fillStyle = g; stx.fillRect(0, 0, 128, 128);
+const spriteTex = new THREE.CanvasTexture(sc);
+
+function makeGeo(pts, bpts, cls, bcls, cloff, sz) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+  geo.setAttribute('aBasePos', new THREE.BufferAttribute(bpts, 3));
+  geo.setAttribute('aColor', new THREE.BufferAttribute(cls, 3));
+  geo.setAttribute('aBaseColor', new THREE.BufferAttribute(bcls, 3));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(sz, 1));
+  geo.setAttribute('aCloudOffset', new THREE.BufferAttribute(cloff, 3));
+  return geo;
+}
+
+const pos = new Float32Array(PARTICLE_COUNT * 3), baseP = new Float32Array(PARTICLE_COUNT * 3);
+const col = new Float32Array(PARTICLE_COUNT * 3), baseC = new Float32Array(PARTICLE_COUNT * 3);
+const cloud = new Float32Array(PARTICLE_COUNT * 3), sizes = new Float32Array(PARTICLE_COUNT);
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  const i3 = i * 3; sizes[i] = 1.0 + randoms[i] * 1.5;
+  const t = Math.random() * Math.PI * 2, p = Math.acos(2 * Math.random() - 1), r = 4 + Math.random() * 3;
+  baseP[i3] = r * Math.sin(p) * Math.cos(t); baseP[i3 + 1] = r * Math.sin(p) * Math.sin(t); baseP[i3 + 2] = r * Math.cos(p);
+  pos[i3] = baseP[i3]; pos[i3 + 1] = baseP[i3 + 1]; pos[i3 + 2] = baseP[i3 + 2];
+  baseC[i3] = 0.8 + Math.random() * 0.2; baseC[i3 + 1] = 0.4 + Math.random() * 0.3; baseC[i3 + 2] = 0.1 + Math.random() * 0.2;
+  col[i3] = baseC[i3]; col[i3 + 1] = baseC[i3 + 1]; col[i3 + 2] = baseC[i3 + 2];
+  const n = new THREE.Vector3(baseP[i3], baseP[i3 + 1], baseP[i3 + 2]).normalize();
+  const cd = 2 + Math.random() * 6, dr = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+  cloud[i3] = n.x * cd * 0.6 + dr.x * cd * 0.8; cloud[i3 + 1] = n.y * cd * 0.6 + dr.y * cd * 0.8; cloud[i3 + 2] = n.z * cd * 0.6 + dr.z * cd * 0.8;
+}
+
+const shaderMat = new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 }, uPixelRatio: { value: renderer.getPixelRatio() }, uCloudAmount: { value: 1.0 }, uAlphaScale: { value: 0.85 }, uBrightness: { value: 4.5 }, uSprite: { value: spriteTex }, uHandWorldPos: { value: new THREE.Vector3(0, 0, 100) }, uHandActive: { value: 0 } },
+  vertexShader: `uniform float uTime,uPixelRatio,uCloudAmount;attribute vec3 aBasePos,aBaseColor,aCloudOffset;attribute float aSize;varying vec3 vColor;varying vec3 vWorldPos;vec3 m289(vec3 x){return x-floor(x/289.)*289.;}vec4 pte(vec4 x){return m289(((x*34.)+1.)*x);}float sn(vec3 v){vec3 i=floor(v+dot(v,vec3(.33333))),x0=v-i+dot(i,vec3(.16667)),g=step(x0.yzx,x0.xyz),l=1.-g,i1=min(g,l.zxy),i2=max(g,l.zxy),x1=x0-i1+.16667,x2=x0-i2+.33333,x3=x0-.5;i=m289(i);vec4 p=pte(pte(pte(i.z+vec4(0,i1.z,i2.z,1.))+i.y+vec4(0,i1.y,i2.y,1.))+i.x+vec4(0,i1.x,i2.x,1.)),j=p-49.*floor(p*.0714286),x_=floor(j*.0714286),y_=floor(j-7.*x_),x=x_*.142857+.5,y=y_*.142857+.5;vec4 h=1.-abs(x)-abs(y),b0=vec4(x.xy,y.xy),b1=vec4(x.zw,y.zw),s0=floor(b0)*2.+1.,s1=floor(b1)*2.+1.,sh=-step(h,vec4(0)),a0=b0.xzyw+s0.xzyw*sh.xxyy,a1=b1.xzyw+s1.xzyw*sh.zzww;vec3 p0=vec3(a0.xy,h.x),p1=vec3(a0.zw,h.y),p2=vec3(a1.xy,h.z),p3=vec3(a1.zw,h.w);vec4 n=1.79284291400159-.85373472095314*vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3));p0*=n.x;p1*=n.y;p2*=n.z;p3*=n.w;vec4 m=max(.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.);m=m*m;return 42.*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));}void main(){vColor=aBaseColor;vWorldPos=aBasePos;vec3 p=aBasePos+aCloudOffset*uCloudAmount;if(uCloudAmount>.01){float d=sn(vec3(aBasePos*.05+uTime*.3))*uCloudAmount;p+=normalize(aCloudOffset+.001)*d*2.5;float s=sin(uTime*.6+length(aBasePos)*.2)*.3*uCloudAmount;p+=cross(vec3(0,1,0),normalize(p+.001))*s;}vec4 mv=modelViewMatrix*vec4(p,1.);gl_PointSize=aSize*uPixelRatio*(400./-mv.z);gl_Position=projectionMatrix*mv;}`,
+  fragmentShader: `uniform sampler2D uSprite;uniform float uAlphaScale,uBrightness,uTime;uniform vec3 uHandWorldPos;uniform float uHandActive;varying vec3 vColor;varying vec3 vWorldPos;float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}void main(){float d=length(gl_PointCoord-vec2(.5));if(d>.5)discard;float a=pow(1.-smoothstep(0.,.5,d),.85);vec4 t=texture2D(uSprite,gl_PointCoord);float sp=hash(gl_FragCoord.xy+uTime*10.);sp=smoothstep(.92,1.,sp);float tw=.5+.5*sin(gl_FragCoord.x*.3+uTime*5.)*sin(gl_FragCoord.y*.3+uTime*4.);float b=1.+sp*3.+tw*.3;gl_FragColor=vec4(vColor*uBrightness*t.rgb*b,t.a*a*uAlphaScale);if(uHandActive>.5){float td=length(vWorldPos-uHandWorldPos);float tg=exp(-td*.5)*1.5;gl_FragColor.rgb+=vColor*tg*2.0;}}`,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+});
+const particles = new THREE.Points(makeGeo(pos, baseP, col, baseC, cloud, sizes), shaderMat);
+pivotGroup.add(particles);
+
+// Hand cursor
+const handDotGeo = new THREE.SphereGeometry(0.12, 16, 16);
+const handDot = new THREE.Mesh(handDotGeo, new THREE.MeshBasicMaterial({ color: 0xffaa00 }));
+handDot.visible = false; scene.add(handDot);
+const handGlowGeo = new THREE.SphereGeometry(0.4, 16, 16);
+const handGlow = new THREE.Mesh(handGlowGeo, new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.3 }));
+handGlow.visible = false; scene.add(handGlow);
+
+// Sparkle particles for touch effect
+const sparkleCount = 80;
+const sparklePos = new Float32Array(sparkleCount * 3);
+const sparkleSizes = new Float32Array(sparkleCount);
+const sparkleLife = new Float32Array(sparkleCount);
+for (let i = 0; i < sparkleCount; i++) { sparkleLife[i] = 0; sparkleSizes[i] = 0; }
+const sparkleGeo = new THREE.BufferGeometry();
+sparkleGeo.setAttribute('position', new THREE.BufferAttribute(sparklePos, 3));
+sparkleGeo.setAttribute('size', new THREE.BufferAttribute(sparkleSizes, 1));
+const sparkleMat2 = new THREE.PointsMaterial({ color: 0xffcc66, size: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.5 });
+const sparkles = new THREE.Points(sparkleGeo, sparkleMat2);
+sparkles.visible = false; scene.add(sparkles);
+
+// Load GLB
+console.log('Loading GLB...');
+new GLTFLoader().load('./models/huangjing.glb', gltf => {
+  try {
+    console.log('GLB loaded');
+    const m = gltf.scene; m.scale.set(24, 24, 24); pivotGroup.add(m);
+    // Model transparency + store meshes for touch glow
+    window._modelMeshes = [];
+    m.traverse(ch => {
+      if (ch.isMesh && ch.material) {
+        window._modelMeshes.push(ch);
+        const mats = Array.isArray(ch.material) ? ch.material : [ch.material];
+        mats.forEach(mat => {
+          mat.transparent = true;
+          mat.opacity = 0.4;
+          mat.needsUpdate = true;
+        });
+      }
+    });
+    console.log('Model transparency + meshes stored');
+    particles.visible = false;
+    const pts = [], clrs = [], nrmls = [];
+    m.traverse(ch => {
+      if (!ch.isMesh || !ch.geometry) return;
+      const gm = ch.geometry, pa = gm.getAttribute('position'), na = gm.getAttribute('normal'), w = ch.matrixWorld;
+      if (!pa) return;
+      let td = null;
+      if (ch.material && ch.material.map) try {
+        const img = ch.material.map.image || ch.material.map.source?.data;
+        if (img && img.width) { const tc = document.createElement('canvas'); tc.width = img.width; tc.height = img.height; tc.getContext('2d').drawImage(img, 0, 0); td = tc.getContext('2d').getImageData(0, 0, tc.width, tc.height); }
+      } catch (e) { }
+      const uv = gm.getAttribute('uv');
+      for (let i = 0; i < Math.min(pa.count, PARTICLE_COUNT * 3); i++) {
+        const v = new THREE.Vector3(pa.getX(i), pa.getY(i), pa.getZ(i)).applyMatrix4(w);
+        pts.push(v.x, v.y, v.z);
+        const n = new THREE.Vector3(na ? na.getX(i) : 0, na ? na.getY(i) : 0, na ? na.getZ(i) : 0);
+        n.applyMatrix4(w).normalize(); nrmls.push(n.x, n.y, n.z);
+        let cr = 0.8, cg = 0.45, cb = 0.25;
+        if (td && uv) {
+          const u = Math.floor(uv.getX(i) * (td.width - 1));
+          const vi = Math.floor((1 - uv.getY(i)) * (td.height - 1));
+          const pi = (vi * td.width + u) * 4;
+          cr = Math.pow(td.data[pi] / 255, 2.2);
+          cg = Math.pow(td.data[pi + 1] / 255, 2.2);
+          cb = Math.pow(td.data[pi + 2] / 255, 2.2);
+        }
+        clrs.push(cr, cg, cb);
+      }
+    });
+    if (pts.length >= 3) {
+      const total = Math.min(pts.length / 3, PARTICLE_COUNT);
+      const np = new Float32Array(PARTICLE_COUNT * 3), nbp = new Float32Array(PARTICLE_COUNT * 3);
+      const nc = new Float32Array(PARTICLE_COUNT * 3), nbc = new Float32Array(PARTICLE_COUNT * 3);
+      const ncl = new Float32Array(PARTICLE_COUNT * 3), ns = new Float32Array(PARTICLE_COUNT);
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        const i3 = i * 3, idx = i < total ? i : Math.floor(Math.random() * total), bi = idx * 3;
+        const ex = i < total ? 0 : (Math.random() - 0.5) * 3, ey = i < total ? 0 : (Math.random() - 0.5) * 3, ez = i < total ? 0 : (Math.random() - 0.5) * 3;
+        nbp[i3] = pts[bi]; nbp[i3 + 1] = pts[bi + 1]; nbp[i3 + 2] = pts[bi + 2];
+        np[i3] = pts[bi] + ex; np[i3 + 1] = pts[bi + 1] + ey; np[i3 + 2] = pts[bi + 2] + ez;
+        nbc[i3] = clrs[bi]; nbc[i3 + 1] = clrs[bi + 1]; nbc[i3 + 2] = clrs[bi + 2];
+        nc[i3] = clrs[bi]; nc[i3 + 1] = clrs[bi + 1]; nc[i3 + 2] = clrs[bi + 2];
+        const nr = new THREE.Vector3(nrmls[bi], nrmls[bi + 1], nrmls[bi + 2]);
+        const dr = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+        const cd = 4 + Math.random() * 12;
+        ncl[i3] = nr.x * cd * 0.7 + dr.x * cd * 1.2 + ex;
+        ncl[i3 + 1] = nr.y * cd * 0.7 + dr.y * cd * 1.2 + ey;
+        ncl[i3 + 2] = nr.z * cd * 0.7 + dr.z * cd * 1.2 + ez;
+        ns[i] = 1.0 + randoms[i] * 1.5;
+      }
+      const geo2 = makeGeo(np, nbp, nc, nbc, ncl, ns);
+      particles.geometry.dispose(); particles.geometry = geo2; particles.visible = true;
+    }
+    // Museum pedestal with engraved text
+    if (!window._pedestalAdded) {
+      window._pedestalAdded = true;
+      // Create engraved marble texture with gold text
+      const mc = document.createElement('canvas'); mc.width = 2048; mc.height = 200;
+      const mx = mc.getContext('2d');
+      const mbg = mx.createLinearGradient(0, 0, 0, mc.height);
+      mbg.addColorStop(0, '#1a1410'); mbg.addColorStop(0.5, '#1e1712'); mbg.addColorStop(1, '#17110d');
+      mx.fillStyle = mbg; mx.fillRect(0, 0, mc.width, mc.height);
+      // Gold engraved text
+      mx.font = 'bold 50px STSong, Songti SC, serif';
+      mx.textAlign = 'center'; mx.textBaseline = 'middle';
+      mx.fillStyle = 'rgba(0,0,0,0.55)'; mx.fillText('博物馆典藏 — 黄精 3D 模型', mc.width/2 + 2, 72);
+      mx.fillStyle = '#c89830'; mx.fillText('博物馆典藏 — 黄精 3D 模型', mc.width/2, 70);
+      mx.fillStyle = 'rgba(255,220,150,0.3)'; mx.fillText('博物馆典藏 — 黄精 3D 模型', mc.width/2 - 1, 68);
+      mx.font = 'italic 20px STSong, serif';
+      mx.fillStyle = 'rgba(0,0,0,0.5)'; mx.fillText('Polygonatum sibiricum  ·  Museum Collection', mc.width/2 + 1, 130);
+      mx.fillStyle = '#a07828'; mx.fillText('Polygonatum sibiricum  ·  Museum Collection', mc.width/2, 128);
+      const pedTex = new THREE.CanvasTexture(mc);
+      pedTex.wrapS = THREE.RepeatWrapping; pedTex.minFilter = THREE.LinearFilter;
+      // Pedestal cylinder
+      const baseGeo = new THREE.CylinderGeometry(5.5, 6.5, 1.6, 64);
+      const baseMat = new THREE.MeshStandardMaterial({
+        map: pedTex, roughness: 0.5, metalness: 0.25, color: new THREE.Color(0xd0c0a0),
+      });
+      const base = new THREE.Mesh(baseGeo, baseMat);
+      base.position.y = -11.5; pivotGroup.add(base);
+      // Glow ring
+      const ringGeo = new THREE.TorusGeometry(5.9, 0.1, 16, 64);
+      const ringMat = new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.4 });
+      const ring = new THREE.Mesh(ringGeo, ringMat); ring.rotation.x = Math.PI / 2; ring.position.y = -10.65; ring.name = 'pedestalRing'; pivotGroup.add(ring);
+      // Top disc
+      const discGeo = new THREE.CylinderGeometry(5.5, 5.5, 0.06, 48);
+      const discMat = new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0.2 });
+      const disc = new THREE.Mesh(discGeo, discMat); disc.position.y = -10.63; pivotGroup.add(disc);
+      console.log('Pedestal added');
+    }
+    console.log('Model ready');
+  } catch (e) { console.error('GLB error:', e); }
+}, undefined, err => console.error('GLB load fail:', err));
+
+// Hand tracking - starts only on user click
+let handsInited = false;
+async function startCamera() {
+  if (handsInited) return;
+  handsInited = true;
+  document.getElementById('cam-btn').textContent = '⏳ 启动中...';
+  await initHands();
+  if (handData !== undefined) {
+    document.getElementById('cam-btn').classList.add('hidden');
+  } else {
+    document.getElementById('cam-btn').textContent = '📷 重试';
+    handsInited = false;
+  }
+}
+window.startCamera = startCamera;
+
+async function initHands() {
+  console.log('initHands...');
+  try {
+    const { HandLandmarker, FilesetResolver } = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/vision_bundle.min.mjs');
+    console.log('MediaPipe imported');
+    const vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/wasm');
+    console.log('WASM OK');
+    const hl = await HandLandmarker.createFromOptions(vision, {
+      baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task', delegate: 'GPU' },
+      numHands: 1, runningMode: 'VIDEO',
+    });
+    console.log('HandLandmarker OK');
+    const webcam = document.getElementById('webcam'), hc = document.getElementById('hand-canvas'), hctx = hc.getContext('2d');
+    try {
+      webcam.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+      await webcam.play();
+      webcam.classList.add('show');
+      console.log('Camera OK');
+    } catch (e) { console.error('Camera fail:', e); handData = undefined; return; }
+    let lastTime = -1;
+    function detect() {
+      if (webcam.videoWidth === 0) { requestAnimationFrame(detect); return; }
+      hc.width = webcam.videoWidth; hc.height = webcam.videoHeight;
+      if (webcam.currentTime !== lastTime) {
+        lastTime = webcam.currentTime;
+        try {
+          const r = hl.detectForVideo(webcam, performance.now());
+          hctx.clearRect(0, 0, hc.width, hc.height);
+          if (r.landmarks && r.landmarks.length > 0) {
+            const lm = r.landmarks[0];
+            hctx.strokeStyle = '#ffaa00'; hctx.lineWidth = 2;
+            [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[5,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20]].forEach(([a,b]) => { hctx.beginPath(); hctx.moveTo(lm[a].x * hc.width, lm[a].y * hc.height); hctx.lineTo(lm[b].x * hc.width, lm[b].y * hc.height); hctx.stroke(); });
+            const wrist = lm[0]; let maxD = 0;
+            [8,12,16,20].forEach(t => maxD = Math.max(maxD, Math.hypot(lm[t].x - wrist.x, lm[t].y - wrist.y)));
+            if (!handDetected) document.getElementById('gesture-hint')?.classList.add('fade');
+            handData = { x: (lm[9].x - 0.5) * 2, y: (lm[9].y - 0.5) * -2, openness: Math.min(maxD * 2.5, 1.0) };
+            handDetected = true;
+          } else { handData = null; handDetected = false; }
+        } catch (e) { }
+      }
+      requestAnimationFrame(detect);
+    }
+    detect();
+  } catch (e) { console.error('Hand init fail:', e); handData = undefined; }
+}
+
+// Animate
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+  shaderMat.uniforms.uTime.value = t;
+  if (handDetected && handData) {
+    controls.autoRotate = false;
+    pivotGroup.rotation.y += ((handData.x || 0) * Math.PI - pivotGroup.rotation.y) * 0.08;
+    pivotGroup.rotation.x += ((handData.y || 0) * 0.8 - pivotGroup.rotation.x) * 0.08;
+    const s = 0.6 + (handData.openness || 0.5) * 1.2;
+    pivotGroup.scale.lerp(new THREE.Vector3(s, s, s), 0.08);
+    const hp = new THREE.Vector3(handData.x * 10, handData.y * 10, handData.openness * 15 - 5);
+    hp.applyMatrix4(pivotGroup.matrixWorld);
+    handDot.position.copy(hp); handDot.visible = true;
+    handGlow.position.copy(hp); handGlow.visible = true;
+    handDot.material.color.setHSL((t * 0.2) % 1, 1, 0.6);
+    handGlow.material.color.setHSL((t * 0.2) % 1, 1, 0.5);
+    handGlow.scale.setScalar(1 + Math.sin(t * 8) * 0.3);
+    shaderMat.uniforms.uHandWorldPos.value.copy(pivotGroup.worldToLocal(hp.clone()));
+    shaderMat.uniforms.uHandActive.value = 1;
+    // Hand lamp illuminates model
+    handLamp.visible = true;
+    const lampPos = pivotGroup.worldToLocal(hp.clone());
+    handLamp.position.copy(lampPos);
+    handLamp.intensity += (8 - handLamp.intensity) * 0.1;
+    // Touch glow + sparkles
+    if (window._modelMeshes) {
+      const hLocal = pivotGroup.worldToLocal(hp.clone());
+      window._modelMeshes.forEach(mesh => {
+        const box = new THREE.Box3().setFromObject(mesh);
+        const center = box.getCenter(new THREE.Vector3());
+        const dist = hLocal.distanceTo(center);
+        const intensity = Math.max(0, 1 - dist * 0.1);
+        mesh.material.emissive = mesh.material.emissive || new THREE.Color();
+        mesh.material.emissiveIntensity += (intensity * 1.5 - (mesh.material.emissiveIntensity || 0)) * 0.2;
+      });
+    }
+    // Sparkle particles around hand
+    sparkles.visible = true;
+    const spCount = sparkleCount;
+    for (let i = 0; i < spCount; i++) {
+      const i3 = i * 3;
+      sparkleLife[i] -= 0.016;
+      if (sparkleLife[i] <= 0) {
+        sparkleLife[i] = 0.3 + Math.random() * 0.7;
+        sparklePos[i3] = hp.x + (Math.random() - 0.5) * 2;
+        sparklePos[i3 + 1] = hp.y + (Math.random() - 0.5) * 2;
+        sparklePos[i3 + 2] = hp.z + (Math.random() - 0.5) * 2;
+        sparkleSizes[i] = 0.05 + Math.random() * 0.15;
+      } else {
+        sparklePos[i3] += (Math.random() - 0.5) * 0.06;
+        sparklePos[i3 + 1] += (Math.random() - 0.5) * 0.06;
+        sparklePos[i3 + 2] += (Math.random() - 0.5) * 0.06;
+        sparkleSizes[i] *= 0.96;
+      }
+    }
+    sparkleGeo.attributes.position.needsUpdate = true;
+    sparkleGeo.attributes.size.needsUpdate = true;
+    sparkleMat2.opacity = 0.25 + Math.sin(t * 10) * 0.15;
+  } else {
+    controls.autoRotate = true;
+    handDot.visible = false; handGlow.visible = false;
+    sparkles.visible = false;
+    handLamp.intensity *= 0.85;
+    if (handLamp.intensity < 0.3) handLamp.visible = false;
+    shaderMat.uniforms.uHandActive.value = 0;
+    // Reset touch glow
+    if (window._modelMeshes) {
+      window._modelMeshes.forEach(mesh => {
+        if (mesh.material.emissiveIntensity) mesh.material.emissiveIntensity *= 0.9;
+      });
+    }
+  }
+  rim.color.setHSL((t * 0.03) % 1, 0.8, 0.5);
+  fill.color.setHSL((t * 0.02 + 0.5) % 1, 0.8, 0.5);
+  // Pedestal ring pulse
+  const pRing = pivotGroup.getObjectByName('pedestalRing');
+  if (pRing) { pRing.material.opacity = 0.15 + Math.sin(t * 2) * 0.1; }
+  controls.update();
+  composer.render();
+}
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
+  shaderMat.uniforms.uPixelRatio.value = renderer.getPixelRatio();
+});
+
+// Start
+animate();
+document.getElementById('loading-overlay').classList.add('hidden');
+console.log('Ready - click camera button to start hand tracking');
+  </script>
+</body>
+</html>
