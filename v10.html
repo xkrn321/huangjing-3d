@@ -209,7 +209,7 @@ const handGlowGeo = new THREE.SphereGeometry(0.6, 16, 16);
 const handGlow = new THREE.Mesh(handGlowGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false }));
 handGlow.visible = false; scene.add(handGlow);
 // Hand flashlight
-const handLight = new THREE.PointLight(0xffb84d, 150, 130, 1.5);
+const handLight = new THREE.PointLight(0xffb84d, 150, 182, 1.5);
 handLight.visible = false; scene.add(handLight);
 
 // Sparkle particles for touch effect
