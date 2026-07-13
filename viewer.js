@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const viewerStartedAt = performance.now();
 const $ = (selector) => document.querySelector(selector);
@@ -24,29 +25,29 @@ const cameraLabelText = $('#camera-label-text');
 const gestureGuide = $('#gesture-guide');
 const toast = $('#toast');
 
-const STORAGE_KEY = 'huangjing-viewer-v12';
+const STORAGE_KEY = 'huangjing-viewer-v13';
 const DEFAULTS = Object.freeze({
   quality: 'auto',
-  exposure: 1.05,
-  ambient: 0.55,
-  bloom: 0.35,
-  meshOpacity: 0.42,
-  particleOpacity: 0.62,
-  particleSize: 0.8,
-  cloudAmount: 0.05,
+  exposure: 1.15,
+  ambient: 0.34,
+  bloom: 0.28,
+  surfaceDetail: 0.76,
+  rimIntensity: 1.15,
   movementSpeed: 1,
   rotationSensitivity: 1,
   zoomSensitivity: 1,
   inferenceFps: 24,
   handLight: 70,
   handRange: 72,
+  beamFocus: 0.66,
+  touchBoost: 1.35,
   autoRotateSpeed: 0.6,
 });
 
 const PROFILES = Object.freeze({
-  low: { particles: 12000, dpr: 0.9, bloom: false, label: 'FLOW' },
-  balanced: { particles: 22000, dpr: 1, bloom: true, label: 'BAL' },
-  high: { particles: 38000, dpr: 1.35, bloom: true, label: 'HIGH' },
+  low: { dpr: 0.9, bloom: false, label: 'FLOW' },
+  balanced: { dpr: 1, bloom: true, label: 'BAL' },
+  high: { dpr: 1.35, bloom: true, label: 'HIGH' },
 });
 
 function loadSettings() {
@@ -60,11 +61,9 @@ let profile = PROFILES[resolvedQuality];
 let renderer;
 let composer = null;
 let bloomPass = null;
-let particles = null;
 let modelRoot = null;
-let sourceMeshes = [];
+let modelMeshes = [];
 let materialRecords = [];
-let touchTargets = [];
 let handData = null;
 let handDetected = false;
 let modelReady = false;
@@ -111,7 +110,7 @@ try {
   throw error;
 }
 
-renderer.setClearColor(0x06100e, 1);
+renderer.setClearColor(0x020706, 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = state.exposure;
@@ -119,7 +118,10 @@ renderer.setSize(innerWidth, innerHeight, false);
 renderer.setPixelRatio(Math.min(devicePixelRatio, profile.dpr));
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x06100e, 0.016);
+scene.fog = new THREE.FogExp2(0x020706, 0.012);
+const pmremGenerator = new THREE.PMREMGenerator(renderer);
+scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
+pmremGenerator.dispose();
 const pivot = new THREE.Group();
 scene.add(pivot);
 
@@ -137,27 +139,47 @@ controls.autoRotateSpeed = state.autoRotateSpeed;
 controls.target.set(0, 0, 0);
 controls.saveState();
 
-const ambientLight = new THREE.HemisphereLight(0xc7ead7, 0x15100b, state.ambient);
+const ambientLight = new THREE.HemisphereLight(0x9fcbb3, 0x070504, state.ambient);
 scene.add(ambientLight);
-const keyLight = new THREE.DirectionalLight(0xf7e9ce, 1.35);
+const keyLight = new THREE.DirectionalLight(0xffefd1, 2.2);
 keyLight.position.set(9, 13, 11);
 scene.add(keyLight);
-const jadeRim = new THREE.DirectionalLight(0x66d6a3, 0.72);
+const jadeRim = new THREE.DirectionalLight(0x68dca8, state.rimIntensity);
 jadeRim.position.set(-10, 5, -12);
 scene.add(jadeRim);
-const goldRim = new THREE.PointLight(0xd8ad61, 9, 34, 1.7);
+const goldRim = new THREE.PointLight(0xd8ad61, 7, 30, 1.8);
 goldRim.position.set(7, -4, 5);
 scene.add(goldRim);
 
-const handLight = new THREE.PointLight(0xffc36e, state.handLight, state.handRange, 1.7);
+const handLight = new THREE.SpotLight(0xffd39a, state.handLight, state.handRange, THREE.MathUtils.lerp(Math.PI * .34, Math.PI * .09, state.beamFocus), .72, 1.5);
 handLight.visible = false;
 scene.add(handLight);
+scene.add(handLight.target);
+const touchLight = new THREE.PointLight(0xffc87a, 0, 9, 1.8);
+touchLight.visible = false;
+scene.add(touchLight);
 const handHalo = new THREE.Mesh(
-  new THREE.SphereGeometry(0.22, 10, 10),
-  new THREE.MeshBasicMaterial({ color: 0xffd49a, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending }),
+  new THREE.RingGeometry(0.2, 0.29, 32),
+  new THREE.MeshBasicMaterial({ color: 0xffd49a, transparent: true, opacity: 0.72, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }),
 );
 handHalo.visible = false;
 scene.add(handHalo);
+
+const shadowCanvas = document.createElement('canvas');
+shadowCanvas.width = shadowCanvas.height = 128;
+const shadowContext = shadowCanvas.getContext('2d');
+const shadowGradient = shadowContext.createRadialGradient(64, 64, 3, 64, 64, 64);
+shadowGradient.addColorStop(0, 'rgba(0,0,0,.55)');
+shadowGradient.addColorStop(1, 'rgba(0,0,0,0)');
+shadowContext.fillStyle = shadowGradient;
+shadowContext.fillRect(0, 0, 128, 128);
+const groundShadow = new THREE.Mesh(
+  new THREE.PlaneGeometry(13, 7),
+  new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(shadowCanvas), transparent: true, depthWrite: false, opacity: .72 }),
+);
+groundShadow.rotation.x = -Math.PI / 2;
+groundShadow.position.set(0, -6.55, 0);
+scene.add(groundShadow);
 
 function rebuildPostprocessing() {
   clearTimeout(postTimer);
@@ -177,118 +199,6 @@ function rebuildPostprocessing() {
 
 rebuildPostprocessing();
 
-const particleMaterial = new THREE.ShaderMaterial({
-  uniforms: {
-    uTime: { value: 0 },
-    uPixelRatio: { value: renderer.getPixelRatio() },
-    uCloudAmount: { value: state.cloudAmount },
-    uPointScale: { value: state.particleSize },
-    uOpacity: { value: state.particleOpacity },
-    uHandPosition: { value: new THREE.Vector3(0, 0, 100) },
-    uHandActive: { value: 0 },
-  },
-  vertexShader: `
-    uniform float uTime, uPixelRatio, uCloudAmount, uPointScale;
-    attribute vec3 aCloudOffset, aColor;
-    attribute float aSize;
-    varying vec3 vColor;
-    varying vec3 vBasePosition;
-    void main() {
-      vColor = aColor;
-      vBasePosition = position;
-      float wave = sin(uTime * .65 + position.y * .42 + position.x * .18) * .16;
-      vec3 p = position + aCloudOffset * uCloudAmount;
-      p += normalize(aCloudOffset + .001) * wave * uCloudAmount;
-      vec4 mv = modelViewMatrix * vec4(p, 1.0);
-      gl_PointSize = aSize * uPointScale * uPixelRatio * (110.0 / max(3.0, -mv.z));
-      gl_Position = projectionMatrix * mv;
-    }
-  `,
-  fragmentShader: `
-    uniform vec3 uHandPosition;
-    uniform float uHandActive, uOpacity;
-    varying vec3 vColor;
-    varying vec3 vBasePosition;
-    void main() {
-      float d = length(gl_PointCoord - vec2(.5));
-      if (d > .5) discard;
-      float core = 1.0 - smoothstep(.0, .5, d);
-      float touch = uHandActive * exp(-length(vBasePosition - uHandPosition) * .42);
-      vec3 color = vColor * (.58 + core * .46 + touch * 1.25);
-      gl_FragColor = vec4(color, core * (.2 + touch * .22) * uOpacity);
-    }
-  `,
-  transparent: true,
-  depthWrite: false,
-  blending: THREE.AdditiveBlending,
-});
-
-function pickSource(vertexIndex) {
-  for (const source of sourceMeshes) {
-    if (vertexIndex < source.end) return source;
-  }
-  return sourceMeshes[sourceMeshes.length - 1];
-}
-
-function buildParticles(count = profile.particles) {
-  if (!sourceMeshes.length) return;
-  const totalVertices = sourceMeshes[sourceMeshes.length - 1].end;
-  const positions = new Float32Array(count * 3);
-  const offsets = new Float32Array(count * 3);
-  const colors = new Float32Array(count * 3);
-  const sizes = new Float32Array(count);
-  const point = new THREE.Vector3();
-  const drift = new THREE.Vector3();
-  const outward = new THREE.Vector3();
-  const jade = new THREE.Color(0x74c49b);
-  const gold = new THREE.Color(0xe4b86c);
-  const pale = new THREE.Color(0xdcebdc);
-  const color = new THREE.Color();
-
-  for (let i = 0; i < count; i++) {
-    const targetIndex = Math.floor(Math.random() * totalVertices);
-    const source = pickSource(targetIndex);
-    const localIndex = Math.max(0, targetIndex - source.start) % source.position.count;
-    point.fromBufferAttribute(source.position, localIndex).applyMatrix4(source.matrix);
-    const i3 = i * 3;
-    positions[i3] = point.x;
-    positions[i3 + 1] = point.y;
-    positions[i3 + 2] = point.z;
-
-    drift.set(Math.random() - .5, Math.random() - .5, Math.random() - .5).normalize();
-    outward.copy(point).normalize();
-    const spread = 1.2 + Math.random() * 4.4;
-    offsets[i3] = outward.x * spread * .55 + drift.x * spread;
-    offsets[i3 + 1] = outward.y * spread * .55 + drift.y * spread;
-    offsets[i3 + 2] = outward.z * spread * .55 + drift.z * spread;
-
-    const mix = Math.random();
-    if (mix > .91) color.copy(pale);
-    else color.lerpColors(jade, gold, Math.min(.72, Math.max(.08, .22 + point.y * .02 + Math.random() * .3)));
-    color.multiplyScalar(.78 + Math.random() * .32);
-    colors[i3] = color.r;
-    colors[i3 + 1] = color.g;
-    colors[i3 + 2] = color.b;
-    sizes[i] = .72 + Math.random() * 1.25;
-  }
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute('aCloudOffset', new THREE.BufferAttribute(offsets, 3));
-  geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
-  geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
-  geometry.computeBoundingSphere();
-
-  if (particles) {
-    particles.geometry.dispose();
-    particles.geometry = geometry;
-  } else {
-    particles = new THREE.Points(geometry, particleMaterial);
-    particles.frustumCulled = true;
-    pivot.add(particles);
-  }
-}
-
 function prepareModel(root) {
   modelRoot = root;
   pivot.add(modelRoot);
@@ -305,52 +215,46 @@ function prepareModel(root) {
   modelRoot.updateMatrixWorld(true);
   pivot.updateMatrixWorld(true);
 
-  sourceMeshes = [];
+  modelMeshes = [];
   materialRecords = [];
-  touchTargets = [];
-  let vertexCursor = 0;
+  const maxAnisotropy = renderer.capabilities.getMaxAnisotropy();
 
   modelRoot.traverse((mesh) => {
     if (!mesh.isMesh || !mesh.geometry?.getAttribute('position')) return;
-    const position = mesh.geometry.getAttribute('position');
-    const matrix = mesh.matrixWorld.clone();
-    sourceMeshes.push({ start: vertexCursor, end: vertexCursor + position.count, position, matrix });
-    vertexCursor += position.count;
+    modelMeshes.push(mesh);
 
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     const clones = materials.map((original) => {
       const material = original.clone();
-      material.transparent = true;
-      material.opacity = state.meshOpacity;
+      material.transparent = false;
+      material.opacity = 1;
       material.depthWrite = true;
-      if ('roughness' in material) material.roughness = .52;
-      if ('metalness' in material) material.metalness = .02;
-      if ('emissive' in material) material.emissive = new THREE.Color(0x071610);
-      if ('emissiveIntensity' in material) material.emissiveIntensity = .08;
-      materialRecords.push({ material, baseEmissive: .08 });
+      material.depthTest = true;
+      if ('roughness' in material) material.roughness = .7 - state.surfaceDetail * .44;
+      if ('envMapIntensity' in material) material.envMapIntensity = .45 + state.surfaceDetail * 1.15;
+      if (material.normalScale) material.normalScale.setScalar(.75 + state.surfaceDetail * .55);
+      ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap'].forEach((key) => {
+        if (material[key]) material[key].anisotropy = maxAnisotropy;
+      });
+      if ('emissive' in material) material.emissive = new THREE.Color(0x030806);
+      if ('emissiveIntensity' in material) material.emissiveIntensity = .015;
+      material.needsUpdate = true;
+      materialRecords.push({ material, baseEmissive: .015 });
       return material;
     });
     mesh.material = Array.isArray(mesh.material) ? clones : clones[0];
 
-    const meshCenter = new THREE.Box3().setFromObject(mesh).getCenter(new THREE.Vector3());
-    pivot.worldToLocal(meshCenter);
-    touchTargets.push({ center: meshCenter, materials: clones });
   });
+
+  const finalBox = new THREE.Box3().setFromObject(modelRoot);
+  groundShadow.position.y = finalBox.min.y - .3;
 
   modelReady = true;
   window.__viewerReadyMs = Math.round(performance.now() - viewerStartedAt);
   setStatus('标本在线', 'live');
-  setLoading(100, '实体标本已就绪 · 粒子层后台生成');
+  setLoading(100, '实体标本与材质光场已就绪');
   setTimeout(() => loadingOverlay.classList.add('hidden'), 140);
-
-  const buildWhenIdle = () => {
-    if (particles) return;
-    buildParticles(profile.particles);
-    window.__particleReadyMs = Math.round(performance.now() - viewerStartedAt);
-    setStatus('标本在线', 'live');
-  };
-  if ('requestIdleCallback' in window) requestIdleCallback(buildWhenIdle, { timeout: 900 });
-  else setTimeout(buildWhenIdle, 120);
+  setTimeout(() => gestureGuide.classList.add('fade'), 3600);
 }
 
 const modelLoader = new GLTFLoader();
@@ -358,7 +262,7 @@ setLoading(18, '读取外置 GLB · 避免 Base64 双份内存');
 modelLoader.load(
   'models/huangjing.glb',
   (gltf) => {
-    setLoading(82, '构建自适应粒子层');
+    setLoading(82, '强化模型材质与轮廓光');
     requestAnimationFrame(() => {
       try { prepareModel(gltf.scene); }
       catch (error) { failModel(error); }
@@ -383,7 +287,7 @@ function saveSettings() {
 }
 
 function formatSetting(name, value) {
-  if (name === 'meshOpacity' || name === 'particleOpacity') return `${Math.round(value * 100)}%`;
+  if (name === 'surfaceDetail' || name === 'beamFocus') return `${Math.round(value * 100)}%`;
   if (name === 'inferenceFps') return `${Math.round(value)} FPS`;
   if (name === 'handLight') return Math.round(value);
   if (name === 'handRange') return Math.round(value);
@@ -406,8 +310,6 @@ function applySetting(name, value, persist = true) {
       resolvedQuality = resolveQuality(state.quality);
       profile = PROFILES[resolvedQuality];
       renderer.setPixelRatio(Math.min(devicePixelRatio, profile.dpr));
-      particleMaterial.uniforms.uPixelRatio.value = renderer.getPixelRatio();
-      if (modelReady) buildParticles(profile.particles);
       rebuildPostprocessing();
       showToast(`已切换到${resolvedQuality === 'low' ? '流畅' : resolvedQuality === 'high' ? '精细' : '均衡'}档`);
       break;
@@ -418,14 +320,17 @@ function applySetting(name, value, persist = true) {
       if (bloomPass) bloomPass.strength = state.bloom;
       postTimer = setTimeout(rebuildPostprocessing, 240);
       break;
-    case 'meshOpacity':
-      materialRecords.forEach(({ material }) => { material.opacity = state.meshOpacity; });
+    case 'surfaceDetail':
+      materialRecords.forEach(({ material }) => {
+        if ('roughness' in material) material.roughness = .7 - state.surfaceDetail * .44;
+        if ('envMapIntensity' in material) material.envMapIntensity = .45 + state.surfaceDetail * 1.15;
+        if (material.normalScale) material.normalScale.setScalar(.75 + state.surfaceDetail * .55);
+      });
       break;
-    case 'particleOpacity': particleMaterial.uniforms.uOpacity.value = state.particleOpacity; break;
-    case 'particleSize': particleMaterial.uniforms.uPointScale.value = state.particleSize; break;
-    case 'cloudAmount': particleMaterial.uniforms.uCloudAmount.value = state.cloudAmount; break;
+    case 'rimIntensity': jadeRim.intensity = state.rimIntensity; break;
     case 'handLight': handLight.intensity = state.handLight; break;
     case 'handRange': handLight.distance = state.handRange; break;
+    case 'beamFocus': handLight.angle = THREE.MathUtils.lerp(Math.PI * .34, Math.PI * .09, state.beamFocus); break;
     case 'autoRotateSpeed': controls.autoRotateSpeed = state.autoRotateSpeed; break;
   }
   if (persist) saveSettings();
@@ -641,23 +546,79 @@ handButton.addEventListener('click', () => detectionRunning ? stopHandTracking()
 
 const clock = new THREE.Clock();
 const handWorldPosition = new THREE.Vector3();
-const handLocalPosition = new THREE.Vector3();
+const handNdc = new THREE.Vector2();
+const handRaycaster = new THREE.Raycaster();
+const beamTargetPosition = new THREE.Vector3();
+const beamFallbackPosition = new THREE.Vector3();
+let pointerLightData = null;
 let lastMetricUpdate = 0;
 let frameCounter = 0;
 let fps = 0;
 let metricStart = performance.now();
+
+canvas.addEventListener('pointermove', (event) => {
+  gestureGuide.classList.add('fade');
+  const rect = canvas.getBoundingClientRect();
+  pointerLightData = {
+    x: ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    y: 1 - ((event.clientY - rect.top) / rect.height) * 2,
+  };
+}, { passive: true });
+canvas.addEventListener('pointerleave', () => { pointerLightData = null; });
+
+function resetModelGlow(response) {
+  materialRecords.forEach(({ material, baseEmissive }) => {
+    if ('emissiveIntensity' in material) material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, baseEmissive, response * .5);
+  });
+}
+
+function updateFlashlight(input, response, time, strength = 1) {
+  pivot.updateMatrixWorld(true);
+  handNdc.set(input.x, input.y);
+  handRaycaster.setFromCamera(handNdc, camera);
+  const hits = modelReady ? handRaycaster.intersectObjects(modelMeshes, false) : [];
+  const hit = hits[0] || null;
+  handRaycaster.ray.at(25, beamFallbackPosition);
+  beamTargetPosition.copy(hit ? hit.point : beamFallbackPosition);
+  handWorldPosition.copy(handRaycaster.ray.origin).addScaledVector(handRaycaster.ray.direction, 4.5);
+  handLight.position.copy(handWorldPosition);
+  handLight.target.position.lerp(beamTargetPosition, response);
+  handLight.target.updateMatrixWorld();
+  handLight.intensity = THREE.MathUtils.lerp(handLight.intensity, state.handLight * (hit ? 1.18 : .72) * strength, response);
+  handHalo.position.lerp(beamTargetPosition, response);
+  handHalo.quaternion.copy(camera.quaternion);
+  handHalo.scale.setScalar((hit ? 1.05 : .72) + Math.sin(time * 6) * .08);
+  handHalo.material.opacity = THREE.MathUtils.lerp(handHalo.material.opacity, (hit ? .86 : .2) * strength, response);
+  handLight.visible = state.handLight > 0;
+  handHalo.visible = true;
+
+  resetModelGlow(response);
+  if (hit) {
+    const hitMaterials = Array.isArray(hit.object.material) ? hit.object.material : [hit.object.material];
+    hitMaterials.forEach((material) => {
+      if ('emissiveIntensity' in material) material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, .04 + state.touchBoost * strength, response);
+    });
+    touchLight.position.copy(hit.point).addScaledVector(handRaycaster.ray.direction, -.35);
+    touchLight.intensity = THREE.MathUtils.lerp(touchLight.intensity, (8 + state.touchBoost * 18) * strength, response);
+    touchLight.visible = true;
+  } else {
+    touchLight.intensity = THREE.MathUtils.lerp(touchLight.intensity, 0, response);
+    touchLight.visible = touchLight.intensity > .05;
+  }
+}
 
 function animate(now) {
   requestAnimationFrame(animate);
   if (document.hidden) return;
   const delta = Math.min(clock.getDelta(), .05);
   const time = clock.elapsedTime;
-  particleMaterial.uniforms.uTime.value = time;
   frameCounter += 1;
+  pivot.position.y = Math.sin(time * .62) * .07;
+  groundShadow.material.opacity = .64 + Math.sin(time * .62) * .05;
 
+  const response = 1 - Math.exp(-(5 + state.movementSpeed * 5) * delta);
   if (handDetected && handData) {
     controls.autoRotate = false;
-    const response = 1 - Math.exp(-(5 + state.movementSpeed * 5) * delta);
     const targetY = handData.x * Math.PI * .78 * state.rotationSensitivity;
     const targetX = handData.y * .72 * state.rotationSensitivity;
     pivot.rotation.y = THREE.MathUtils.lerp(pivot.rotation.y, targetY, response);
@@ -665,37 +626,27 @@ function animate(now) {
     const targetScale = .78 + handData.openness * .62 * state.zoomSensitivity;
     const nextScale = THREE.MathUtils.lerp(pivot.scale.x, targetScale, response * .72);
     pivot.scale.setScalar(nextScale);
-
-    handWorldPosition.set(handData.x * 8.5, handData.y * 6.5, 8 + handData.openness * 5);
-    handLight.position.copy(handWorldPosition);
-    handHalo.position.copy(handWorldPosition);
-    handLight.visible = state.handLight > 0;
-    handHalo.visible = true;
-    handHalo.scale.setScalar(.9 + Math.sin(time * 6) * .14);
-    handLocalPosition.copy(handWorldPosition);
-    pivot.worldToLocal(handLocalPosition);
-    particleMaterial.uniforms.uHandPosition.value.copy(handLocalPosition);
-    particleMaterial.uniforms.uHandActive.value = 1;
-
-    touchTargets.forEach(({ center, materials }) => {
-      const glow = Math.max(0, 1 - handLocalPosition.distanceTo(center) / 6);
-      materials.forEach((material) => {
-        if ('emissiveIntensity' in material) material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, .08 + glow * 1.35, response);
-      });
-    });
   } else {
     controls.autoRotate = state.autoRotateSpeed > 0;
     controls.autoRotateSpeed = state.autoRotateSpeed;
+  }
+
+  if (handDetected && handData) {
+    updateFlashlight(handData, response, time, 1);
+  } else if (pointerLightData) {
+    updateFlashlight(pointerLightData, response, time, .68);
+  } else {
     handLight.visible = false;
     handHalo.visible = false;
-    particleMaterial.uniforms.uHandActive.value = 0;
-    materialRecords.forEach(({ material, baseEmissive }) => {
-      if ('emissiveIntensity' in material) material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, baseEmissive, .08);
-    });
+    touchLight.visible = false;
+    touchLight.intensity = 0;
+    resetModelGlow(.12);
   }
 
   controls.update(delta);
-  goldRim.intensity = 8 + Math.sin(time * .8) * 1.5;
+  keyLight.position.x = 9 + Math.sin(time * .31) * 1.1;
+  jadeRim.intensity = state.rimIntensity * (1 + Math.sin(time * .7) * .06);
+  goldRim.intensity = 6.5 + Math.sin(time * .8) * 1.1;
   if (composer) composer.render(delta);
   else renderer.render(scene, camera);
 
@@ -716,7 +667,6 @@ function onResize() {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight, false);
   renderer.setPixelRatio(Math.min(devicePixelRatio, profile.dpr));
-  particleMaterial.uniforms.uPixelRatio.value = renderer.getPixelRatio();
   composer?.setSize(innerWidth, innerHeight);
 }
 

@@ -1,7 +1,7 @@
 :root {
   color-scheme: dark;
-  --ink: #06100e;
-  --ink-soft: #0d1d18;
+  --ink: #020706;
+  --ink-soft: #08120f;
   --jade: #81c7a6;
   --jade-bright: #b8f0ce;
   --gold: #d8ad61;
@@ -25,9 +25,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--jade-bright); outline-offset: 3px; }
 
 #three-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-.ambient { position: fixed; inset: 0; pointer-events: none; z-index: 1; background: radial-gradient(circle at 50% 42%, transparent 0 24%, rgba(2, 8, 7, .22) 55%, rgba(1, 5, 4, .82) 100%), linear-gradient(90deg, rgba(6, 16, 14, .62), transparent 28% 72%, rgba(6, 16, 14, .7)); }
-.ambient::before { content: ""; position: absolute; inset: 0; opacity: .25; background-image: linear-gradient(rgba(129,199,166,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(129,199,166,.035) 1px, transparent 1px); background-size: 48px 48px; mask-image: linear-gradient(to bottom, transparent, #000 18%, #000 80%, transparent); }
-.ambient::after { content: ""; position: absolute; left: 50%; top: 51%; width: min(54vw, 640px); aspect-ratio: 1; transform: translate(-50%,-50%); border: 1px solid rgba(129,199,166,.1); border-radius: 50%; box-shadow: 0 0 0 50px rgba(129,199,166,.018), 0 0 0 100px rgba(129,199,166,.012); }
+.ambient { position: fixed; inset: 0; pointer-events: none; z-index: 1; background: radial-gradient(circle at 50% 43%, rgba(10, 31, 24, .16) 0 20%, rgba(2, 9, 7, .48) 52%, rgba(0, 3, 2, .94) 100%), linear-gradient(90deg, rgba(0, 4, 3, .9), transparent 33% 67%, rgba(0, 4, 3, .92)); }
+.ambient::before { content: ""; position: absolute; inset: 0; opacity: .14; background-image: linear-gradient(rgba(129,199,166,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(129,199,166,.025) 1px, transparent 1px); background-size: 48px 48px; mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 76%, transparent); }
+.ambient::after { content: ""; position: absolute; left: 50%; top: 51%; width: min(54vw, 640px); aspect-ratio: 1; transform: translate(-50%,-50%); border: 1px solid rgba(129,199,166,.065); border-radius: 50%; box-shadow: 0 0 0 50px rgba(129,199,166,.008), 0 0 0 100px rgba(129,199,166,.005); }
 
 #loading-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-content: center; justify-items: center; background: #06100e; transition: opacity .65s var(--ease), visibility .65s; }
 #loading-overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }

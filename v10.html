@@ -57,6 +57,7 @@
     <span class="hand-symbol">✋</span>
     <p><b>移动手掌</b>旋转标本</p>
     <p><b>张合手掌</b>缩放光场</p>
+    <p><b>靠近模型</b>聚光提亮</p>
   </div>
 
   <div class="action-dock" aria-label="交互工具">
@@ -86,10 +87,8 @@
       <label class="slider-row"><span>整体亮度 <output data-output="exposure"></output></span><input type="range" min="0.6" max="2.6" step="0.05" data-setting="exposure"></label>
       <label class="slider-row"><span>环境补光 <output data-output="ambient"></output></span><input type="range" min="0" max="2" step="0.05" data-setting="ambient"></label>
       <label class="slider-row"><span>辉光强度 <output data-output="bloom"></output></span><input type="range" min="0" max="2.4" step="0.05" data-setting="bloom"></label>
-      <label class="slider-row"><span>实体显影 <output data-output="meshOpacity"></output></span><input type="range" min="0" max="1" step="0.02" data-setting="meshOpacity"></label>
-      <label class="slider-row"><span>粒子浓度 <output data-output="particleOpacity"></output></span><input type="range" min="0" max="1" step="0.02" data-setting="particleOpacity"></label>
-      <label class="slider-row"><span>粒子尺寸 <output data-output="particleSize"></output></span><input type="range" min="0.45" max="2.4" step="0.05" data-setting="particleSize"></label>
-      <label class="slider-row"><span>云化程度 <output data-output="cloudAmount"></output></span><input type="range" min="0" max="1.5" step="0.05" data-setting="cloudAmount"></label>
+      <label class="slider-row"><span>表面细节 <output data-output="surfaceDetail"></output></span><input type="range" min="0" max="1" step="0.02" data-setting="surfaceDetail"></label>
+      <label class="slider-row"><span>轮廓光 <output data-output="rimIntensity"></output></span><input type="range" min="0" max="3" step="0.05" data-setting="rimIntensity"></label>
     </section>
 
     <section class="control-section">
@@ -104,6 +103,8 @@
       <header><span>03</span><div><h3>随手光</h3><small>HAND LIGHT</small></div></header>
       <label class="slider-row"><span>灯光亮度 <output data-output="handLight"></output></span><input type="range" min="0" max="180" step="5" data-setting="handLight"></label>
       <label class="slider-row"><span>照明范围 <output data-output="handRange"></output></span><input type="range" min="10" max="140" step="2" data-setting="handRange"></label>
+      <label class="slider-row"><span>光束聚焦 <output data-output="beamFocus"></output></span><input type="range" min="0" max="1" step="0.02" data-setting="beamFocus"></label>
+      <label class="slider-row"><span>触碰增亮 <output data-output="touchBoost"></output></span><input type="range" min="0" max="2.5" step="0.05" data-setting="touchBoost"></label>
       <label class="slider-row"><span>自动巡游 <output data-output="autoRotateSpeed"></output></span><input type="range" min="0" max="2" step="0.05" data-setting="autoRotateSpeed"></label>
     </section>
 
