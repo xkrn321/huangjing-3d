@@ -4,115 +4,121 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#07110f">
-  <meta name="description" content="黄精数字标本：支持手势、鼠标与触控的轻量 3D 中药材体验。">
-  <title>黄精 · 数字本草标本</title>
+  <meta name="description" content="黄精数字标本：以手势、鼠标与触控探索中药黄精的轻量 3D 双语体验。">
+  <title>黄精 · Polygonatum Digital Herbarium</title>
   <link rel="preload" href="models/huangjing.glb" as="fetch" type="model/gltf-binary" crossorigin>
   <link rel="stylesheet" href="viewer.css">
 </head>
 <body>
   <div class="ambient" aria-hidden="true"></div>
-  <canvas id="three-canvas" aria-label="黄精三维模型，可用鼠标、触摸或手势控制"></canvas>
+  <canvas id="three-canvas" aria-label="黄精三维模型 Polygonatum 3D specimen，可用鼠标、触摸或手势控制"></canvas>
 
   <div id="loading-overlay" role="status" aria-live="polite">
     <div class="loading-seal"><span>精</span></div>
-    <p class="loading-kicker">DIGITAL HERBARIUM · 001</p>
-    <h1>正在唤醒黄精标本</h1>
+    <p class="loading-kicker">DIGITAL HERBARIUM · 本草数字标本 001</p>
+    <h1>正在唤醒黄精标本<small>Awakening Polygonatum</small></h1>
     <div class="loading-track"><i id="loading-bar"></i></div>
-    <p id="loading-text">初始化光场</p>
+    <p id="loading-text">初始化光场 · Initializing light field</p>
   </div>
 
-  <nav class="topbar" aria-label="页面导航">
-    <a class="back-link" href="index.html" aria-label="返回藏品馆"><span>←</span> 藏品馆</a>
+  <nav class="topbar" aria-label="页面导航 Navigation">
+    <a class="back-link" href="index.html" aria-label="返回藏品馆 Back to collection"><span>←</span><b>藏品馆<small>Collection</small></b></a>
     <div class="brand">
-      <span class="brand-mark">本草数字标本</span>
+      <span class="brand-mark">本草数字标本 · DIGITAL HERBARIUM</span>
       <strong>黄精</strong>
       <em>Polygonatum sibiricum</em>
     </div>
     <button class="icon-button" id="panel-toggle" type="button" aria-expanded="false" aria-controls="control-panel">
-      <span aria-hidden="true">⌁</span><b>调校</b>
+      <span aria-hidden="true">⌁</span><b>调校<small>Adjust</small></b>
     </button>
   </nav>
 
-  <aside class="specimen-card" aria-label="标本信息">
-    <p class="index">NO. 001 / RHIZOMA</p>
-    <h2>一味黄精<br><span>藏山川之气</span></h2>
-    <p class="summary">百合科黄精属多年生草本。以根茎入药，气微、味甘，传统用于补气养阴、健脾润肺。</p>
-    <div class="tags"><span>补气养阴</span><span>健脾</span><span>润肺</span></div>
-    <div class="origin"><i></i><span>典型产地</span><strong>云 · 贵 · 川</strong></div>
+  <aside class="specimen-card" aria-label="黄精介绍 Polygonatum introduction">
+    <div class="card-eyebrow"><span class="seal">精</span><p>NO. 001 · MEDICINAL RHIZOME<small>药用根茎数字标本</small></p></div>
+    <h2>一味黄精<span>藏山川之气</span><small>Polygonatum · Essence of the Mountains</small></h2>
+    <p class="summary"><span>百合科黄精属多年生草本，以根茎入药。气微、味甘，传统用于补气养阴、健脾润肺。</span><small>A perennial herb in the genus <i>Polygonatum</i>. Its rhizome is traditionally valued for nourishing qi and yin, supporting the spleen, and moistening the lungs.</small></p>
+    <dl class="facts">
+      <div><dt>药用部位<small>Medicinal part</small></dt><dd>根茎<small>Rhizome</small></dd></div>
+      <div><dt>性味<small>Nature & taste</small></dt><dd>平 · 甘<small>Neutral · Sweet</small></dd></div>
+      <div><dt>典型产地<small>Origins</small></dt><dd>云 · 贵 · 川<small>Yunnan · Guizhou · Sichuan</small></dd></div>
+    </dl>
+    <div class="tags"><span>补气养阴<small>Nourish qi & yin</small></span><span>健脾<small>Support spleen</small></span><span>润肺<small>Moisten lungs</small></span></div>
+    <p class="heritage-note">传统应用信息仅供文化与科普展示，不构成医疗建议。<small>Traditional-use information is for cultural education only and is not medical advice.</small></p>
   </aside>
 
   <div class="runtime" aria-live="polite">
     <span id="status-dot" class="status-dot"></span>
-    <strong id="runtime-status">模型准备中</strong>
+    <strong id="runtime-status">模型准备中 · Preparing</strong>
     <small id="runtime-metrics">-- FPS · AUTO</small>
   </div>
 
-  <section id="camera-card" class="camera-card" aria-label="手势识别预览">
+  <section id="camera-card" class="camera-card" aria-label="手势识别预览 Hand tracking preview">
     <video id="webcam" autoplay playsinline muted></video>
     <canvas id="hand-canvas"></canvas>
-    <div class="camera-label"><span></span><b id="camera-label-text">HAND OFF</b></div>
+    <div class="camera-label"><span></span><b id="camera-label-text">HAND OFF · 手势关闭</b></div>
   </section>
 
   <div class="gesture-guide" id="gesture-guide" aria-hidden="true">
     <span class="hand-symbol">✋</span>
-    <p><b>移动手掌</b>旋转标本</p>
-    <p><b>张合手掌</b>缩放光场</p>
-    <p><b>靠近模型</b>聚光提亮</p>
+    <p><b>移动手掌</b>旋转标本 <small>Move · Rotate</small></p>
+    <p><b>张合手掌</b>缩放光场 <small>Open · Zoom</small></p>
+    <p><b>靠近模型</b>聚光探索 <small>Approach · Illuminate</small></p>
   </div>
 
-  <div class="action-dock" aria-label="交互工具">
-    <button id="hand-button" class="primary-action" type="button"><span>◉</span><b>开启手势</b><small>CAMERA</small></button>
-    <button id="reset-button" type="button"><span>↻</span><b>复位</b></button>
-    <button id="dock-panel-button" type="button"><span>⌁</span><b>调校</b></button>
+  <div class="action-dock" aria-label="交互工具 Interaction tools">
+    <button id="hand-button" class="primary-action" type="button"><span>◉</span><span class="action-copy"><b>开启手势</b><small>Hand control</small></span></button>
+    <button id="reset-button" type="button"><span>↻</span><span class="action-copy"><b>复位</b><small>Reset</small></span></button>
+    <button id="dock-panel-button" type="button"><span>⌁</span><span class="action-copy"><b>调校</b><small>Adjust</small></span></button>
   </div>
 
-  <aside id="control-panel" class="control-panel" aria-label="视觉与交互参数">
+  <aside id="control-panel" class="control-panel" aria-label="视觉与交互参数 Visual and interaction settings">
     <div class="panel-head">
-      <div><small>LIVE PARAMETERS</small><h2>标本调校台</h2></div>
-      <button id="panel-close" class="close-button" type="button" aria-label="关闭调校台">×</button>
+      <div><small>LIVE PARAMETERS · 实时参数</small><h2>标本调校台<span>Specimen controls</span></h2></div>
+      <button id="panel-close" class="close-button" type="button" aria-label="关闭调校台 Close settings">×</button>
     </div>
 
     <div class="profile-row">
-      <label for="quality">性能档位</label>
+      <label for="quality">性能档位 <small>Performance</small></label>
       <select id="quality" data-setting="quality">
-        <option value="auto">自动适配</option>
-        <option value="low">流畅</option>
-        <option value="balanced">均衡</option>
-        <option value="high">精细</option>
+        <option value="auto">自动 · Auto</option>
+        <option value="low">流畅 · Smooth</option>
+        <option value="balanced">均衡 · Balanced</option>
+        <option value="high">精细 · Detailed</option>
       </select>
     </div>
 
     <section class="control-section">
-      <header><span>01</span><div><h3>光场</h3><small>LIGHT FIELD</small></div></header>
-      <label class="slider-row"><span>整体亮度 <output data-output="exposure"></output></span><input type="range" min="0.6" max="2.6" step="0.05" data-setting="exposure"></label>
-      <label class="slider-row"><span>环境补光 <output data-output="ambient"></output></span><input type="range" min="0" max="2" step="0.05" data-setting="ambient"></label>
-      <label class="slider-row"><span>辉光强度 <output data-output="bloom"></output></span><input type="range" min="0" max="2.4" step="0.05" data-setting="bloom"></label>
-      <label class="slider-row"><span>表面细节 <output data-output="surfaceDetail"></output></span><input type="range" min="0" max="1" step="0.02" data-setting="surfaceDetail"></label>
-      <label class="slider-row"><span>轮廓光 <output data-output="rimIntensity"></output></span><input type="range" min="0" max="3" step="0.05" data-setting="rimIntensity"></label>
+      <header><span>01</span><div><h3>光场与雾感</h3><small>LIGHT & MIST</small></div></header>
+      <label class="slider-row"><span><b>整体亮度<small>Exposure</small></b><output data-output="exposure"></output></span><input type="range" min="0.6" max="2.6" step="0.05" data-setting="exposure"></label>
+      <label class="slider-row"><span><b>环境补光<small>Ambient light</small></b><output data-output="ambient"></output></span><input type="range" min="0" max="2" step="0.05" data-setting="ambient"></label>
+      <label class="slider-row"><span><b>辉光强度<small>Soft bloom</small></b><output data-output="bloom"></output></span><input type="range" min="0" max="2.4" step="0.05" data-setting="bloom"></label>
+      <label class="slider-row"><span><b>朦胧程度<small>Mist veil</small></b><output data-output="modelHaze"></output></span><input type="range" min="0" max="0.65" step="0.01" data-setting="modelHaze"></label>
+      <label class="slider-row"><span><b>表面细节<small>Surface detail</small></b><output data-output="surfaceDetail"></output></span><input type="range" min="0" max="1" step="0.02" data-setting="surfaceDetail"></label>
+      <label class="slider-row"><span><b>轮廓光<small>Rim light</small></b><output data-output="rimIntensity"></output></span><input type="range" min="0" max="3" step="0.05" data-setting="rimIntensity"></label>
     </section>
 
     <section class="control-section">
       <header><span>02</span><div><h3>手势</h3><small>GESTURE</small></div></header>
-      <label class="slider-row"><span>移动速度 <output data-output="movementSpeed"></output></span><input type="range" min="0.2" max="2.5" step="0.05" data-setting="movementSpeed"></label>
-      <label class="slider-row"><span>旋转灵敏度 <output data-output="rotationSensitivity"></output></span><input type="range" min="0.25" max="2" step="0.05" data-setting="rotationSensitivity"></label>
-      <label class="slider-row"><span>缩放灵敏度 <output data-output="zoomSensitivity"></output></span><input type="range" min="0.25" max="1.8" step="0.05" data-setting="zoomSensitivity"></label>
-      <label class="slider-row"><span>识别帧率 <output data-output="inferenceFps"></output></span><input type="range" min="12" max="30" step="1" data-setting="inferenceFps"></label>
+      <label class="slider-row"><span><b>移动速度<small>Movement speed</small></b><output data-output="movementSpeed"></output></span><input type="range" min="0.2" max="2.5" step="0.05" data-setting="movementSpeed"></label>
+      <label class="slider-row"><span><b>旋转灵敏度<small>Rotation sensitivity</small></b><output data-output="rotationSensitivity"></output></span><input type="range" min="0.25" max="2" step="0.05" data-setting="rotationSensitivity"></label>
+      <label class="slider-row"><span><b>缩放灵敏度<small>Zoom sensitivity</small></b><output data-output="zoomSensitivity"></output></span><input type="range" min="0.25" max="1.8" step="0.05" data-setting="zoomSensitivity"></label>
+      <label class="slider-row"><span><b>识别帧率<small>Detection rate</small></b><output data-output="inferenceFps"></output></span><input type="range" min="12" max="30" step="1" data-setting="inferenceFps"></label>
     </section>
 
     <section class="control-section">
-      <header><span>03</span><div><h3>随手光</h3><small>HAND LIGHT</small></div></header>
-      <label class="slider-row"><span>灯光亮度 <output data-output="handLight"></output></span><input type="range" min="0" max="180" step="5" data-setting="handLight"></label>
-      <label class="slider-row"><span>照明范围 <output data-output="handRange"></output></span><input type="range" min="10" max="140" step="2" data-setting="handRange"></label>
-      <label class="slider-row"><span>光束聚焦 <output data-output="beamFocus"></output></span><input type="range" min="0" max="1" step="0.02" data-setting="beamFocus"></label>
-      <label class="slider-row"><span>触碰增亮 <output data-output="touchBoost"></output></span><input type="range" min="0" max="2.5" step="0.05" data-setting="touchBoost"></label>
-      <label class="slider-row"><span>自动巡游 <output data-output="autoRotateSpeed"></output></span><input type="range" min="0" max="2" step="0.05" data-setting="autoRotateSpeed"></label>
+      <header><span>03</span><div><h3>探索光</h3><small>EXPLORATION LIGHT</small></div></header>
+      <label class="slider-row"><span><b>灯光亮度<small>Light intensity</small></b><output data-output="handLight"></output></span><input type="range" min="0" max="180" step="5" data-setting="handLight"></label>
+      <label class="slider-row"><span><b>照明范围<small>Light range</small></b><output data-output="handRange"></output></span><input type="range" min="10" max="140" step="2" data-setting="handRange"></label>
+      <label class="slider-row"><span><b>光束聚焦<small>Beam focus</small></b><output data-output="beamFocus"></output></span><input type="range" min="0" max="1" step="0.02" data-setting="beamFocus"></label>
+      <label class="slider-row"><span><b>触碰显影<small>Reveal on touch</small></b><output data-output="touchBoost"></output></span><input type="range" min="0" max="2.5" step="0.05" data-setting="touchBoost"></label>
+      <label class="slider-row"><span><b>自动巡游<small>Auto orbit</small></b><output data-output="autoRotateSpeed"></output></span><input type="range" min="0" max="2" step="0.05" data-setting="autoRotateSpeed"></label>
     </section>
 
-    <button id="restore-button" class="restore-button" type="button">恢复推荐参数</button>
+    <button id="restore-button" class="restore-button" type="button">恢复推荐参数 <small>Restore defaults</small></button>
   </aside>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <noscript><p class="noscript">请启用 JavaScript 以查看 3D 标本。</p></noscript>
+  <noscript><p class="noscript">请启用 JavaScript 以查看 3D 标本。<br>Enable JavaScript to explore the specimen.</p></noscript>
 
   <script type="importmap">
   {

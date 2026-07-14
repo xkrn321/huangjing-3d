@@ -25,22 +25,23 @@ const cameraLabelText = $('#camera-label-text');
 const gestureGuide = $('#gesture-guide');
 const toast = $('#toast');
 
-const STORAGE_KEY = 'huangjing-viewer-v13';
+const STORAGE_KEY = 'huangjing-viewer-v14';
 const DEFAULTS = Object.freeze({
   quality: 'auto',
-  exposure: 1.15,
-  ambient: 0.34,
-  bloom: 0.28,
+  exposure: 1.1,
+  ambient: 0.28,
+  bloom: 0.34,
+  modelHaze: 0.24,
   surfaceDetail: 0.76,
   rimIntensity: 1.15,
   movementSpeed: 1,
   rotationSensitivity: 1,
   zoomSensitivity: 1,
   inferenceFps: 24,
-  handLight: 70,
+  handLight: 78,
   handRange: 72,
   beamFocus: 0.66,
-  touchBoost: 1.35,
+  touchBoost: 1.55,
   autoRotateSpeed: 0.6,
 });
 
@@ -105,8 +106,8 @@ try {
     powerPreference: 'high-performance',
   });
 } catch (error) {
-  setLoading(100, '当前浏览器无法启动 WebGL');
-  setStatus('WebGL 不可用', 'error');
+  setLoading(100, '当前浏览器无法启动 WebGL · WebGL unavailable');
+  setStatus('WebGL 不可用 · Unavailable', 'error');
   throw error;
 }
 
@@ -123,6 +124,7 @@ const pmremGenerator = new THREE.PMREMGenerator(renderer);
 scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.035).texture;
 pmremGenerator.dispose();
 const pivot = new THREE.Group();
+pivot.position.x = innerWidth > 980 ? 1.15 : 0;
 scene.add(pivot);
 
 const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 180);
@@ -164,6 +166,49 @@ const handHalo = new THREE.Mesh(
 );
 handHalo.visible = false;
 scene.add(handHalo);
+
+const exploreCanvas = document.createElement('canvas');
+exploreCanvas.width = exploreCanvas.height = 128;
+const exploreContext = exploreCanvas.getContext('2d');
+const exploreGradient = exploreContext.createRadialGradient(64, 64, 0, 64, 64, 64);
+exploreGradient.addColorStop(0, 'rgba(255,241,203,.9)');
+exploreGradient.addColorStop(.2, 'rgba(255,207,130,.38)');
+exploreGradient.addColorStop(1, 'rgba(255,190,96,0)');
+exploreContext.fillStyle = exploreGradient;
+exploreContext.fillRect(0, 0, 128, 128);
+const exploreGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: new THREE.CanvasTexture(exploreCanvas),
+  color: 0xffd79d,
+  transparent: true,
+  opacity: 0,
+  depthWrite: false,
+  depthTest: true,
+  blending: THREE.AdditiveBlending,
+}));
+exploreGlow.scale.set(2.4, 2.4, 1);
+exploreGlow.visible = false;
+scene.add(exploreGlow);
+
+const mistCanvas = document.createElement('canvas');
+mistCanvas.width = mistCanvas.height = 128;
+const mistContext = mistCanvas.getContext('2d');
+const mistGradient = mistContext.createRadialGradient(64, 64, 5, 64, 64, 64);
+mistGradient.addColorStop(0, 'rgba(126,222,177,.22)');
+mistGradient.addColorStop(.52, 'rgba(81,160,124,.08)');
+mistGradient.addColorStop(1, 'rgba(38,94,70,0)');
+mistContext.fillStyle = mistGradient;
+mistContext.fillRect(0, 0, 128, 128);
+const mistAura = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: new THREE.CanvasTexture(mistCanvas),
+  transparent: true,
+  opacity: .04 + state.modelHaze * .18,
+  depthWrite: false,
+  depthTest: false,
+  blending: THREE.AdditiveBlending,
+}));
+mistAura.position.set(0, .2, -3);
+mistAura.scale.set(17, 17, 1);
+pivot.add(mistAura);
 
 const shadowCanvas = document.createElement('canvas');
 shadowCanvas.width = shadowCanvas.height = 128;
@@ -226,8 +271,9 @@ function prepareModel(root) {
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     const clones = materials.map((original) => {
       const material = original.clone();
-      material.transparent = false;
-      material.opacity = 1;
+      const baseOpacity = 1 - state.modelHaze * .42;
+      material.transparent = state.modelHaze > .001;
+      material.opacity = baseOpacity;
       material.depthWrite = true;
       material.depthTest = true;
       if ('roughness' in material) material.roughness = .7 - state.surfaceDetail * .44;
@@ -239,7 +285,7 @@ function prepareModel(root) {
       if ('emissive' in material) material.emissive = new THREE.Color(0x030806);
       if ('emissiveIntensity' in material) material.emissiveIntensity = .015;
       material.needsUpdate = true;
-      materialRecords.push({ material, baseEmissive: .015 });
+      materialRecords.push({ material, baseEmissive: .015, baseOpacity });
       return material;
     });
     mesh.material = Array.isArray(mesh.material) ? clones : clones[0];
@@ -251,18 +297,18 @@ function prepareModel(root) {
 
   modelReady = true;
   window.__viewerReadyMs = Math.round(performance.now() - viewerStartedAt);
-  setStatus('标本在线', 'live');
-  setLoading(100, '实体标本与材质光场已就绪');
+  setStatus('标本在线 · Specimen live', 'live');
+  setLoading(100, '实体标本与材质光场已就绪 · Specimen ready');
   setTimeout(() => loadingOverlay.classList.add('hidden'), 140);
   setTimeout(() => gestureGuide.classList.add('fade'), 3600);
 }
 
 const modelLoader = new GLTFLoader();
-setLoading(18, '读取外置 GLB · 避免 Base64 双份内存');
+setLoading(18, '读取轻量模型 · Loading optimized GLB');
 modelLoader.load(
   'models/huangjing.glb',
   (gltf) => {
-    setLoading(82, '强化模型材质与轮廓光');
+    setLoading(82, '构建雾感材质与探索光 · Shaping mist and light');
     requestAnimationFrame(() => {
       try { prepareModel(gltf.scene); }
       catch (error) { failModel(error); }
@@ -270,16 +316,16 @@ modelLoader.load(
   },
   (event) => {
     if (!event.total) return;
-    setLoading(18 + (event.loaded / event.total) * 58, `模型载入 ${Math.round(event.loaded / event.total * 100)}%`);
+    setLoading(18 + (event.loaded / event.total) * 58, `模型载入 · Loading ${Math.round(event.loaded / event.total * 100)}%`);
   },
   failModel,
 );
 
 function failModel(error) {
   console.error(error);
-  setLoading(100, '模型加载失败，请检查网络后刷新');
-  setStatus('模型加载失败', 'error');
-  showToast('模型加载失败：请刷新页面重试');
+  setLoading(100, '模型加载失败 · Model failed to load');
+  setStatus('模型加载失败 · Load failed', 'error');
+  showToast('模型加载失败，请刷新重试 · Model failed, please refresh');
 }
 
 function saveSettings() {
@@ -287,7 +333,7 @@ function saveSettings() {
 }
 
 function formatSetting(name, value) {
-  if (name === 'surfaceDetail' || name === 'beamFocus') return `${Math.round(value * 100)}%`;
+  if (name === 'surfaceDetail' || name === 'beamFocus' || name === 'modelHaze') return `${Math.round(value * 100)}%`;
   if (name === 'inferenceFps') return `${Math.round(value)} FPS`;
   if (name === 'handLight') return Math.round(value);
   if (name === 'handRange') return Math.round(value);
@@ -311,7 +357,8 @@ function applySetting(name, value, persist = true) {
       profile = PROFILES[resolvedQuality];
       renderer.setPixelRatio(Math.min(devicePixelRatio, profile.dpr));
       rebuildPostprocessing();
-      showToast(`已切换到${resolvedQuality === 'low' ? '流畅' : resolvedQuality === 'high' ? '精细' : '均衡'}档`);
+      const qualityLabel = resolvedQuality === 'low' ? '流畅 · Smooth' : resolvedQuality === 'high' ? '精细 · Detailed' : '均衡 · Balanced';
+      showToast(`已切换至 ${qualityLabel}`);
       break;
     }
     case 'exposure': renderer.toneMappingExposure = state.exposure; break;
@@ -319,6 +366,15 @@ function applySetting(name, value, persist = true) {
     case 'bloom':
       if (bloomPass) bloomPass.strength = state.bloom;
       postTimer = setTimeout(rebuildPostprocessing, 240);
+      break;
+    case 'modelHaze':
+      materialRecords.forEach((record) => {
+        record.baseOpacity = 1 - state.modelHaze * .42;
+        record.material.transparent = state.modelHaze > .001;
+        record.material.opacity = record.baseOpacity;
+        record.material.needsUpdate = true;
+      });
+      mistAura.material.opacity = .04 + state.modelHaze * .18;
       break;
     case 'surfaceDetail':
       materialRecords.forEach(({ material }) => {
@@ -354,14 +410,14 @@ document.addEventListener('keydown', (event) => { if (event.key === 'Escape') se
 $('#restore-button').addEventListener('click', () => {
   Object.entries(DEFAULTS).forEach(([name, value]) => applySetting(name, value, false));
   saveSettings();
-  showToast('已恢复推荐参数');
+  showToast('已恢复推荐参数 · Defaults restored');
 });
 
 $('#reset-button').addEventListener('click', () => {
   controls.reset();
   pivot.rotation.set(0, 0, 0);
   pivot.scale.setScalar(1);
-  showToast('视角已复位');
+  showToast('视角已复位 · View reset');
 });
 
 const HAND_CONNECTIONS = [
@@ -406,7 +462,7 @@ function updateHandData(landmarks) {
   handDetected = true;
   handMisses = 0;
   gestureGuide.classList.add('fade');
-  cameraLabelText.textContent = 'HAND LIVE';
+  cameraLabelText.textContent = 'HAND LIVE · 手势在线';
 }
 
 function drawHand(landmarks) {
@@ -447,7 +503,7 @@ function detectFrame(now) {
           handDetected = false;
           handData = null;
           handContext.clearRect(0, 0, handCanvas.width, handCanvas.height);
-          cameraLabelText.textContent = 'SEARCHING';
+          cameraLabelText.textContent = 'SEARCHING · 寻找手部';
         }
       }
     } catch (error) {
@@ -470,12 +526,13 @@ async function createHandLandmarker(HandLandmarker, vision, delegate) {
 
 async function startHandTracking() {
   if (!navigator.mediaDevices?.getUserMedia) {
-    showToast('此浏览器不支持摄像头；仍可用鼠标或触摸控制');
+    showToast('摄像头不可用，仍可用鼠标或触控探索 · Camera unavailable');
     return;
   }
   handButton.disabled = true;
   handButton.querySelector('b').textContent = '正在启动';
-  setStatus('手势引擎启动中');
+  handButton.querySelector('small').textContent = 'Starting…';
+  setStatus('手势启动中 · Starting hand control');
 
   try {
     const cameraPromise = navigator.mediaDevices.getUserMedia({
@@ -501,7 +558,7 @@ async function startHandTracking() {
     } catch (gpuError) {
       console.warn('GPU hand tracking unavailable, switching to CPU', gpuError);
       handLandmarker = await createHandLandmarker(mediaPipe.HandLandmarker, vision, 'CPU');
-      showToast('GPU 不兼容，已自动切换 CPU 手势识别');
+      showToast('已自动切换 CPU 手势识别 · CPU mode enabled');
     }
 
     detectionRunning = true;
@@ -509,14 +566,14 @@ async function startHandTracking() {
     cameraCard.classList.add('show');
     handButton.classList.add('active');
     handButton.querySelector('b').textContent = '关闭手势';
-    handButton.querySelector('small').textContent = 'LIVE';
-    setStatus('手势已连接', 'live');
-    showToast('手势已就绪：移动旋转，张合缩放');
+    handButton.querySelector('small').textContent = 'Hand live';
+    setStatus('手势已连接 · Hand live', 'live');
+    showToast('移动旋转，张合缩放，靠近显影 · Move, zoom and illuminate');
   } catch (error) {
     console.error(error);
     stopHandTracking(false);
-    setStatus('手势启动失败', 'error');
-    showToast(error.name === 'NotAllowedError' ? '需要摄像头权限；仍可用鼠标或触摸' : '手势启动失败，请重试');
+    setStatus('手势启动失败 · Hand failed', 'error');
+    showToast(error.name === 'NotAllowedError' ? '请允许摄像头；也可使用鼠标探索 · Camera permission needed' : '手势启动失败，请重试 · Please retry');
   } finally {
     handButton.disabled = false;
   }
@@ -537,9 +594,9 @@ function stopHandTracking(notify = true) {
   cameraCard.classList.remove('show');
   handButton.classList.remove('active');
   handButton.querySelector('b').textContent = '开启手势';
-  handButton.querySelector('small').textContent = 'CAMERA';
-  setStatus(modelReady ? '标本在线' : '模型准备中', modelReady ? 'live' : '');
-  if (notify) showToast('手势已关闭，可继续用鼠标或触摸');
+  handButton.querySelector('small').textContent = 'Hand control';
+  setStatus(modelReady ? '标本在线 · Specimen live' : '模型准备中 · Preparing', modelReady ? 'live' : '');
+  if (notify) showToast('手势已关闭，鼠标与触控仍可探索 · Pointer remains active');
 }
 
 handButton.addEventListener('click', () => detectionRunning ? stopHandTracking() : startHandTracking());
@@ -567,8 +624,9 @@ canvas.addEventListener('pointermove', (event) => {
 canvas.addEventListener('pointerleave', () => { pointerLightData = null; });
 
 function resetModelGlow(response) {
-  materialRecords.forEach(({ material, baseEmissive }) => {
+  materialRecords.forEach(({ material, baseEmissive, baseOpacity }) => {
     if ('emissiveIntensity' in material) material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, baseEmissive, response * .5);
+    material.opacity = THREE.MathUtils.lerp(material.opacity, baseOpacity, response * .6);
   });
 }
 
@@ -596,14 +654,21 @@ function updateFlashlight(input, response, time, strength = 1) {
   if (hit) {
     const hitMaterials = Array.isArray(hit.object.material) ? hit.object.material : [hit.object.material];
     hitMaterials.forEach((material) => {
-      if ('emissiveIntensity' in material) material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, .04 + state.touchBoost * strength, response);
+      if ('emissiveIntensity' in material) material.emissiveIntensity = THREE.MathUtils.lerp(material.emissiveIntensity, .03 + state.touchBoost * .48 * strength, response);
+      material.opacity = THREE.MathUtils.lerp(material.opacity, 1, response * .9);
     });
     touchLight.position.copy(hit.point).addScaledVector(handRaycaster.ray.direction, -.35);
-    touchLight.intensity = THREE.MathUtils.lerp(touchLight.intensity, (8 + state.touchBoost * 18) * strength, response);
+    touchLight.intensity = THREE.MathUtils.lerp(touchLight.intensity, (6 + state.touchBoost * 12) * strength, response);
     touchLight.visible = true;
+    exploreGlow.position.copy(hit.point).addScaledVector(handRaycaster.ray.direction, -.22);
+    exploreGlow.scale.setScalar(2.05 + Math.sin(time * 4.8) * .12);
+    exploreGlow.material.opacity = THREE.MathUtils.lerp(exploreGlow.material.opacity, .34 * strength, response);
+    exploreGlow.visible = true;
   } else {
     touchLight.intensity = THREE.MathUtils.lerp(touchLight.intensity, 0, response);
     touchLight.visible = touchLight.intensity > .05;
+    exploreGlow.material.opacity = THREE.MathUtils.lerp(exploreGlow.material.opacity, 0, response);
+    exploreGlow.visible = exploreGlow.material.opacity > .01;
   }
 }
 
@@ -615,6 +680,7 @@ function animate(now) {
   frameCounter += 1;
   pivot.position.y = Math.sin(time * .62) * .07;
   groundShadow.material.opacity = .64 + Math.sin(time * .62) * .05;
+  mistAura.material.opacity = (.04 + state.modelHaze * .18) * (1 + Math.sin(time * .43) * .08);
 
   const response = 1 - Math.exp(-(5 + state.movementSpeed * 5) * delta);
   if (handDetected && handData) {
@@ -640,10 +706,15 @@ function animate(now) {
     handHalo.visible = false;
     touchLight.visible = false;
     touchLight.intensity = 0;
+    exploreGlow.visible = false;
+    exploreGlow.material.opacity = 0;
     resetModelGlow(.12);
   }
 
   controls.update(delta);
+  const exploring = (handDetected && handData) || pointerLightData;
+  keyLight.intensity = THREE.MathUtils.lerp(keyLight.intensity, exploring ? 1.78 : 2.12, response * .35);
+  ambientLight.intensity = THREE.MathUtils.lerp(ambientLight.intensity, state.ambient * (exploring ? .8 : 1), response * .35);
   keyLight.position.x = 9 + Math.sin(time * .31) * 1.1;
   jadeRim.intensity = state.rimIntensity * (1 + Math.sin(time * .7) * .06);
   goldRim.intensity = 6.5 + Math.sin(time * .8) * 1.1;
@@ -663,6 +734,7 @@ function animate(now) {
 requestAnimationFrame(animate);
 
 function onResize() {
+  pivot.position.x = innerWidth > 980 ? 1.15 : 0;
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight, false);
@@ -678,8 +750,8 @@ addEventListener('resize', () => {
 
 canvas.addEventListener('webglcontextlost', (event) => {
   event.preventDefault();
-  setStatus('图形上下文已暂停', 'error');
-  showToast('显卡上下文已暂停，请刷新页面恢复');
+  setStatus('图形上下文已暂停 · Graphics paused', 'error');
+  showToast('图形上下文已暂停，请刷新恢复 · Please refresh');
 });
 
 addEventListener('beforeunload', () => stopHandTracking(false));
